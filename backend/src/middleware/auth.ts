@@ -1,0 +1,67 @@
+import { Request, Response, NextFunction } from "express";
+import jwt from "jsonwebtoken";
+import { prisma } from "../lib/prisma";
+import { UserRole } from "@prisma/client";
+
+export interface AuthUser {
+  id: string;
+  email: string;
+  role: UserRole;
+  branchId?: string | null;
+}
+
+declare global {
+  namespace Express {
+    interface Request {
+      user?: AuthUser;
+    }
+  }
+}
+
+export const authenticate = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader?.startsWith("Bearer ")) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+
+    const token = authHeader.substring(7);
+    const payload = jwt.verify(token, process.env.JWT_SECRET!) as AuthUser & { sessionId?: string };
+
+    // Verify user still exists and is active
+    const user = await prisma.user.findUnique({
+      where: { id: payload.id },
+      select: { id: true, email: true, role: true, status: true, branchId: true },
+    });
+
+    if (!user || user.status !== "ACTIVE") {
+      return res.status(401).json({ error: "Account is not active" });
+    }
+
+    req.user = { id: user.id, email: user.email, role: user.role, branchId: user.branchId };
+    next();
+  } catch (error) {
+    if (error instanceof jwt.TokenExpiredError) {
+      return res.status(401).json({ error: "Token expired", code: "TOKEN_EXPIRED" });
+    }
+    return res.status(401).json({ error: "Invalid token" });
+  }
+};
+
+export const authorize = (...roles: UserRole[]) => {
+  return (req: Request, res: Response, next: NextFunction) => {
+    if (!req.user) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+    if (!roles.includes(req.user.role)) {
+      return res.status(403).json({ error: "Insufficient permissions" });
+    }
+    next();
+  };
+};
+
+export const isSuperAdmin = authorize(UserRole.SUPER_ADMIN);
+export const isManagerOrAbove = authorize(UserRole.SUPER_ADMIN, UserRole.MANAGER);
+export const isLoanOfficerOrAbove = authorize(
+  UserRole.SUPER_ADMIN, UserRole.MANAGER, UserRole.LOAN_OFFICER
+);

@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80" fill="none">
+  <defs>
+    <clipPath id="circ">
+      <circle cx="40" cy="40" r="38"/>
+    </clipPath>
+    <radialGradient id="orangeGrad" cx="40%" cy="30%" r="70%">
+      <stop offset="0%" stop-color="#FBBC3B"/>
+      <stop offset="100%" stop-color="#E8940A"/>
+    </radialGradient>
+    <radialGradient id="silverGrad" cx="60%" cy="70%" r="70%">
+      <stop offset="0%" stop-color="#D8DCDF"/>
+      <stop offset="100%" stop-color="#9BA3AB"/>
+    </radialGradient>
+  </defs>
+
+  <!-- White base circle -->
+  <circle cx="40" cy="40" r="39" fill="white"/>
+
+  <g clip-path="url(#circ)">
+    <!-- Orange wave — upper shape -->
+    <path d="M2 2 L78 2 L78 46 C68 38 58 30 46 32 C34 34 26 44 18 50 C12 54 6 54 2 52 Z"
+          fill="url(#orangeGrad)"/>
+
+    <!-- Silver/gray wave — lower shape -->
+    <path d="M2 52 C6 54 12 54 18 50 C26 44 34 34 46 32 C58 30 68 38 78 46 L78 78 L2 78 Z"
+          fill="url(#silverGrad)"/>
+  </g>
+
+  <!-- Subtle border -->
+  <circle cx="40" cy="40" r="38" stroke="#e0e0e0" stroke-width="1" fill="none"/>
+</svg>
