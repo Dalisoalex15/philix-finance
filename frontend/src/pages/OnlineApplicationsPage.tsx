@@ -3,6 +3,7 @@ import { ExternalLink, Eye, CheckCircle, XCircle, AlertCircle, Clock, Send } fro
 import { formatKwacha, formatDate, getStatusColor } from "../lib/mock-data";
 import { useLoanApplicationStore, type LoanApplication } from "../store/loanApplicationStore";
 import { staffApi } from "../lib/api";
+import { toast } from "../store/toastStore";
 
 // Adapter: map store LoanApplication → display shape used by this page
 function toDisplayApp(a: LoanApplication) {
@@ -42,7 +43,11 @@ export default function OnlineApplicationsPage() {
   const handleAction = (id: string, newStatus: string) => {
     updateStatus(id, newStatus as LoanApplication["status"]);
     setSelected(prev => prev?.storeId === id ? { ...prev, status: newStatus } : prev);
-    staffApi.updateApplicationStatus(id, newStatus, note || undefined).catch(() => {/* non-critical */});
+    staffApi.updateApplicationStatus(id, newStatus, note || undefined).catch(() => {});
+    const label = newStatus === "APPROVED" ? "approved" : newStatus === "REJECTED" ? "rejected" : newStatus === "DISBURSED" ? "marked as disbursed" : newStatus.toLowerCase().replace("_", " ");
+    const app = storeApps.find(a => a.id === id);
+    const type = newStatus === "REJECTED" ? "error" : newStatus === "APPROVED" || newStatus === "DISBURSED" ? "success" : "info";
+    toast[type](`Application ${app?.ref ?? id} ${label}`);
   };
 
   const counts: Record<string, number> = {};

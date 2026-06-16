@@ -1,6 +1,7 @@
 import { Outlet } from "react-router-dom";
 import Sidebar from "./Sidebar";
 import Header from "./Header";
+import ToastContainer from "../ui/ToastContainer";
 import { useState } from "react";
 
 export default function MainLayout() {
@@ -15,6 +16,7 @@ export default function MainLayout() {
           <Outlet />
         </main>
       </div>
+      <ToastContainer />
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useClientAuthStore } from "../../store/clientAuth";
+import { useLoanApplicationStore } from "../../store/loanApplicationStore";
 import {
   CreditCard, FileText, Shield, AlertCircle, ChevronRight,
   TrendingUp, Clock, CheckCircle, Package, Bell, Wallet,
@@ -132,10 +133,12 @@ function OnboardingChecklist({ kycVerified }: { kycVerified: boolean }) {
 
 export default function ClientDashboardPage() {
   const client = useClientAuthStore(s => s.client)!;
+  const allApplications = useLoanApplicationStore(s => s.applications);
+  const myApplications = allApplications.filter(a => a.clientId === client.id);
   const initials = `${client.firstName[0]}${client.lastName[0]}`.toUpperCase();
 
-  // Mwansa (clt-001) has an active loan; Grace (clt-002) is a new client for demo purposes
-  const hasActiveLoan = client.id === "clt-001";
+  const hasActiveLoan = myApplications.some(a => a.status === "DISBURSED" || a.status === "APPROVED");
+  const notifCount = myApplications.filter(a => a.status !== "PENDING").length;
 
   const pct = Math.round(((mockActiveLoan.principal - mockActiveLoan.outstanding) / mockActiveLoan.principal) * 100);
   const daysToNext = Math.ceil((new Date(mockActiveLoan.nextPaymentDate).getTime() - Date.now()) / 86400000);
@@ -475,11 +478,17 @@ export default function ClientDashboardPage() {
       <Link to="/portal/notifications" className="flex items-center gap-3 bg-slate-900 border border-slate-800 hover:border-slate-700 rounded-2xl p-4 transition-all group">
         <div className="w-10 h-10 rounded-xl bg-indigo-600/20 flex items-center justify-center relative flex-shrink-0">
           <Bell size={16} className="text-indigo-400" />
-          <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full text-[9px] text-white flex items-center justify-center font-bold">2</span>
+          {notifCount > 0 && (
+            <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full text-[9px] text-white flex items-center justify-center font-bold">
+              {notifCount > 9 ? "9+" : notifCount}
+            </span>
+          )}
         </div>
         <div className="flex-1">
           <div className="text-sm font-semibold text-slate-300">Notifications</div>
-          <div className="text-xs text-slate-600">2 unread messages from Philix Finance</div>
+          <div className="text-xs text-slate-600">
+            {notifCount > 0 ? `${notifCount} update${notifCount > 1 ? "s" : ""} on your loan application${notifCount > 1 ? "s" : ""}` : "No new notifications"}
+          </div>
         </div>
         <ChevronRight size={14} className="text-slate-600 group-hover:text-slate-400" />
       </Link>

@@ -15,6 +15,7 @@ import {
 } from "../lib/mock-data";
 import { useEffect } from "react";
 import { useLoanApplicationStore } from "../store/loanApplicationStore";
+import { useAuthStore } from "../store/auth";
 
 const COLORS = {
   ACTIVE: "#6366f1",
@@ -103,10 +104,19 @@ const STATUS_STYLES: Record<string, string> = {
 export default function DashboardPage() {
   const kpis = mockKPIs;
   const { applications, updateStatus, syncFromApi } = useLoanApplicationStore();
+  const user = useAuthStore(s => s.user);
   const pendingApps = applications.filter(a => a.status === "PENDING" || a.status === "UNDER_REVIEW");
   const totalClients = applications
     .map(a => a.clientId)
     .filter((id, i, arr) => arr.indexOf(id) === i).length;
+
+  const isCEO = user?.role === "SUPER_ADMIN" || user?.role === "MANAGER";
+  const hourOfDay = new Date().getHours();
+  const greeting = hourOfDay < 12 ? "Good morning" : hourOfDay < 17 ? "Good afternoon" : "Good evening";
+  const roleTitle = isCEO ? "Executive Dashboard" : "My Dashboard";
+  const roleSubtitle = isCEO
+    ? "Philix Finance — Real-time portfolio overview"
+    : `${greeting}, ${user?.firstName ?? ""}. Here's your work queue for today.`;
 
   useEffect(() => { syncFromApi(); }, []);
 
@@ -115,8 +125,8 @@ export default function DashboardPage() {
       {/* Page Header */}
       <div className="page-header">
         <div>
-          <h1 className="page-title">Executive Dashboard</h1>
-          <p className="page-subtitle">Philix Finance — Real-time portfolio overview</p>
+          <h1 className="page-title">{roleTitle}</h1>
+          <p className="page-subtitle">{roleSubtitle}</p>
         </div>
         <div className="flex items-center gap-2">
           <span className="flex items-center gap-1.5 text-xs text-emerald-400 bg-emerald-900/30 px-3 py-1.5 rounded-full border border-emerald-800/50">
@@ -237,6 +247,42 @@ export default function DashboardPage() {
           color="emerald"
         />
       </div>
+
+      {/* Officer work-queue panel — only shown to non-CEO staff */}
+      {!isCEO && (
+        <div className="philix-card p-5">
+          <h3 className="section-title mb-4 flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-indigo-400 animate-pulse inline-block" />
+            Your Work Queue
+          </h3>
+          {pendingApps.length === 0 ? (
+            <div className="text-center py-8 text-slate-600 text-sm">
+              <CheckCircle size={28} className="mx-auto mb-2 text-emerald-500/40" />
+              All clear — no pending applications right now
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {pendingApps.slice(0, 5).map(a => (
+                <div key={a.id} className="flex items-center gap-3 bg-slate-800/30 rounded-xl px-4 py-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-semibold text-slate-200 truncate">{a.clientName}</div>
+                    <div className="text-xs text-slate-500 font-mono">{a.ref} · {a.productName}</div>
+                  </div>
+                  <div className="text-right flex-shrink-0">
+                    <div className="text-sm font-bold text-slate-100">K{a.amount.toLocaleString()}</div>
+                    <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full border ${a.status === "PENDING" ? "bg-amber-900/30 text-amber-400 border-amber-800/40" : "bg-blue-900/30 text-blue-400 border-blue-800/40"}`}>
+                      {a.status.replace("_", " ")}
+                    </span>
+                  </div>
+                </div>
+              ))}
+              {pendingApps.length > 5 && (
+                <p className="text-xs text-center text-slate-600 pt-1">+{pendingApps.length - 5} more — <a href="/online-applications" className="text-indigo-400 hover:underline">view all</a></p>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Live Loan Applications Queue */}
       <div className="philix-card p-5">
