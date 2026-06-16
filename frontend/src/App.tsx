@@ -1,12 +1,11 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useAuthStore } from "./store/auth";
 import MainLayout from "./components/layout/MainLayout";
+import UnifiedLoginPage from "./pages/UnifiedLoginPage";
 // Staff portal
-import StaffLoginPage from "./pages/staff/StaffLoginPage";
 import StaffRegisterPage from "./pages/staff/StaffRegisterPage";
 // Client portal
 import ClientPortalLayout from "./components/portal/ClientPortalLayout";
-import ClientLoginPage from "./pages/portal/ClientLoginPage";
 import ClientRegisterPage from "./pages/portal/ClientRegisterPage";
 import ClientDashboardPage from "./pages/portal/ClientDashboardPage";
 import LoanApplicationPage from "./pages/portal/LoanApplicationPage";
@@ -72,7 +71,7 @@ import PortfolioProfitabilityPage from "./pages/PortfolioProfitabilityPage";
 import InvestorStatementsPage from "./pages/InvestorStatementsPage";
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
-  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const isAuthenticated = useAuthStore(s => s.isAuthenticated);
   return isAuthenticated ? <>{children}</> : <Navigate to="/login" replace />;
 }
 
@@ -82,16 +81,12 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Legacy /login → staff login */}
-        <Route path="/login" element={<Navigate to="/staff/login" replace />} />
-
-        {/* Staff portal */}
-        <Route path="/staff/login" element={isAuthenticated ? <Navigate to="/" replace /> : <StaffLoginPage />} />
+        {/* All login routes → single unified login */}
+        <Route path="/login" element={<UnifiedLoginPage />} />
+        <Route path="/staff/login" element={<UnifiedLoginPage />} />
+        <Route path="/portal/login" element={<UnifiedLoginPage />} />
         <Route path="/staff/register" element={<StaffRegisterPage />} />
-        <Route path="/staff" element={<Navigate to="/staff/login" replace />} />
-
-        {/* Client portal */}
-        <Route path="/portal/login" element={<ClientLoginPage />} />
+        <Route path="/staff" element={<Navigate to="/login" replace />} />
         <Route path="/portal/register" element={<ClientRegisterPage />} />
         <Route path="/portal" element={<ClientPortalLayout />}>
           <Route index element={<Navigate to="/portal/dashboard" replace />} />
