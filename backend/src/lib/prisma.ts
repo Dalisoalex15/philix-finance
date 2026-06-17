@@ -6,10 +6,11 @@ declare global {
 
 function createClient(): PrismaClient {
   if (process.env.DATABASE_URL?.startsWith("postgres")) {
-    const { Pool } = require("@neondatabase/serverless");
-    const { PrismaNeon } = require("@prisma/adapter-neon");
-    const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-    const adapter = new PrismaNeon(pool);
+    const { PrismaNeonHTTP } = require("@prisma/adapter-neon");
+    const adapter = new PrismaNeonHTTP(process.env.DATABASE_URL, {
+      arrayMode: false,
+      fullResults: true,
+    });
     return new PrismaClient({ adapter } as any);
   }
   return new PrismaClient({
