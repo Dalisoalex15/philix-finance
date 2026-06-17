@@ -43,5 +43,5 @@ export const errorHandler = (
     return res.status(404).json({ error: "Record not found" });
   }
 
-  res.status(500).json({ error: "An unexpected error occurred" });
+  res.status(500).json({ error: "An unexpected error occurred", _debug: error.message });
 };
