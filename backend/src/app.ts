@@ -41,29 +41,8 @@ const app = express();
 app.use(helmet());
 app.use(compression());
 
-const allowedOrigins = [
-  process.env.FRONTEND_URL || "http://localhost:3000",
-  "http://localhost:3001",
-  "http://localhost:3002",
-  "http://localhost:3003",
-  "http://localhost:3004",
-];
-
 app.use(cors({
-  origin: (origin, callback) => {
-    if (!origin) return callback(null, true);
-    if (
-      allowedOrigins.includes(origin) ||
-      /^http:\/\/(localhost|127\.0\.0\.1|10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+)(:\d+)?$/.test(origin) ||
-      /^https:\/\/[\w-]+(\.vercel\.app)$/.test(origin) ||
-      /^https:\/\/[\w-]+(\.up\.railway\.app)$/.test(origin) ||
-      /^https:\/\/[\w-]+(\.onrender\.com)$/.test(origin) ||
-      /^https?:\/\/(www\.)?philixfinance\.com$/.test(origin)
-    ) {
-      return callback(null, true);
-    }
-    callback(new Error("Not allowed by CORS"));
-  },
+  origin: true,
   credentials: true,
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"],
