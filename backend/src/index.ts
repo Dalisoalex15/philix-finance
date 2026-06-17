@@ -45,8 +45,22 @@ app.use(helmet());
 app.use(compression());
 
 // CORS
+const allowedOrigins = [
+  process.env.FRONTEND_URL || "http://localhost:3000",
+  "http://localhost:3001",
+  "http://localhost:3002",
+  "http://localhost:3003",
+];
 app.use(cors({
-  origin: process.env.FRONTEND_URL || "http://localhost:3000",
+  origin: (origin, callback) => {
+    // Allow requests with no origin (curl, mobile apps, server-to-server)
+    if (!origin) return callback(null, true);
+    // Allow any localhost port or local network IP
+    if (allowedOrigins.includes(origin) || /^http:\/\/(localhost|127\.0\.0\.1|10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+):\d+$/.test(origin)) {
+      return callback(null, true);
+    }
+    callback(new Error("Not allowed by CORS"));
+  },
   credentials: true,
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"],
@@ -60,7 +74,7 @@ const limiter = rateLimit({
 });
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 10,
+  max: 30,
   message: { error: "Too many login attempts. Please try again later." },
 });
 
@@ -85,6 +99,9 @@ app.get("/health", async (_req, res) => {
     res.status(503).json({ status: "error", message: "Database unavailable" });
   }
 });
+
+// Explicit CORS preflight handler — must be before all routes
+app.options("*", cors());
 
 // API Routes
 app.use("/api/auth", authLimiter, authRoutes);

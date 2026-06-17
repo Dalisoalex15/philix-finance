@@ -1,4 +1,4 @@
-import { Router, Request, Response } from "express";
+﻿import { Router, Request, Response, NextFunction } from "express";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { v4 as uuidv4 } from "uuid";
@@ -6,6 +6,9 @@ import { prisma } from "../lib/prisma";
 import { createAuditLog } from "../lib/audit";
 import { authenticate } from "../middleware/auth";
 import { AppError } from "../middleware/errorHandler";
+
+const wrap = (fn: (req: Request, res: Response, next: NextFunction) => Promise<void>) =>
+  (req: Request, res: Response, next: NextFunction) => fn(req, res, next).catch(next);
 
 const router = Router();
 
@@ -28,7 +31,7 @@ function generateRefreshToken(userId: string) {
 }
 
 // POST /api/auth/login
-router.post("/login", async (req: Request, res: Response) => {
+router.post("/login", wrap(async (req: Request, res: Response) => {
   const { email, password } = req.body;
 
   if (!email || !password) {
@@ -121,10 +124,10 @@ router.post("/login", async (req: Request, res: Response) => {
       avatarUrl: user.avatarUrl,
     },
   });
-});
+}));
 
 // POST /api/auth/refresh
-router.post("/refresh", async (req: Request, res: Response) => {
+router.post("/refresh", wrap(async (req: Request, res: Response) => {
   const { refreshToken } = req.body;
   if (!refreshToken) throw new AppError("Refresh token required", 401);
 
@@ -144,10 +147,10 @@ router.post("/refresh", async (req: Request, res: Response) => {
   const accessToken = generateAccessToken(stored.user.id, stored.user.email, stored.user.role);
 
   res.json({ accessToken });
-});
+}));
 
 // POST /api/auth/logout
-router.post("/logout", authenticate, async (req: Request, res: Response) => {
+router.post("/logout", authenticate, wrap(async (req: Request, res: Response) => {
   const { refreshToken } = req.body;
 
   if (refreshToken) {
@@ -167,10 +170,10 @@ router.post("/logout", authenticate, async (req: Request, res: Response) => {
   });
 
   res.json({ message: "Logged out successfully" });
-});
+}));
 
 // GET /api/auth/me
-router.get("/me", authenticate, async (req: Request, res: Response) => {
+router.get("/me", authenticate, wrap(async (req: Request, res: Response) => {
   const user = await prisma.user.findUnique({
     where: { id: req.user!.id },
     select: {
@@ -180,10 +183,10 @@ router.get("/me", authenticate, async (req: Request, res: Response) => {
     },
   });
   res.json(user);
-});
+}));
 
 // POST /api/auth/change-password
-router.post("/change-password", authenticate, async (req: Request, res: Response) => {
+router.post("/change-password", authenticate, wrap(async (req: Request, res: Response) => {
   const { currentPassword, newPassword } = req.body;
 
   if (!currentPassword || !newPassword) {
@@ -218,6 +221,7 @@ router.post("/change-password", authenticate, async (req: Request, res: Response
   });
 
   res.json({ message: "Password changed successfully" });
-});
+}));
 
 export default router;
+

@@ -1,9 +1,12 @@
-import { Router, Request, Response } from "express";
+import { Router, Request, Response, NextFunction } from "express";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { prisma } from "../../lib/prisma";
 import { AppError } from "../../middleware/errorHandler";
 import { Mailer } from "../../lib/mailer";
+
+const wrap = (fn: (req: Request, res: Response, next: NextFunction) => Promise<void>) =>
+  (req: Request, res: Response, next: NextFunction) => fn(req, res, next).catch(next);
 
 const router = Router();
 
@@ -21,7 +24,7 @@ function genRefreshToken(id: string) {
 }
 
 // POST /api/portal/auth/register
-router.post("/register", async (req: Request, res: Response) => {
+router.post("/register", wrap(async (req: Request, res: Response) => {
   const {
     firstName, lastName, email, phone, password,
     dateOfBirth, gender, address, city,
@@ -84,10 +87,10 @@ router.post("/register", async (req: Request, res: Response) => {
     refreshToken: refreshTokenStr,
     account: sanitize(account),
   });
-});
+}));
 
 // POST /api/portal/auth/login
-router.post("/login", async (req: Request, res: Response) => {
+router.post("/login", wrap(async (req: Request, res: Response) => {
   const { email, password } = req.body;
   if (!email || !password) throw new AppError("Email and password required", 400);
 
@@ -133,10 +136,10 @@ router.post("/login", async (req: Request, res: Response) => {
   });
 
   res.json({ accessToken, refreshToken: refreshTokenStr, account: sanitize(account) });
-});
+}));
 
 // POST /api/portal/auth/refresh
-router.post("/refresh", async (req: Request, res: Response) => {
+router.post("/refresh", wrap(async (req: Request, res: Response) => {
   const { refreshToken } = req.body;
   if (!refreshToken) throw new AppError("Refresh token required", 400);
 
@@ -148,16 +151,16 @@ router.post("/refresh", async (req: Request, res: Response) => {
 
   const accessToken = genAccessToken(stored.account.id, stored.account.email);
   res.json({ accessToken, account: sanitize(stored.account) });
-});
+}));
 
 // POST /api/portal/auth/logout
-router.post("/logout", async (req: Request, res: Response) => {
+router.post("/logout", wrap(async (req: Request, res: Response) => {
   const { refreshToken } = req.body;
   if (refreshToken) {
     await prisma.portalRefreshToken.deleteMany({ where: { token: refreshToken } }).catch(() => {});
   }
   res.json({ message: "Logged out" });
-});
+}));
 
 function sanitize(a: Record<string, unknown>) {
   const { passwordHash, failedLoginCount, lockedUntil, ...safe } = a;

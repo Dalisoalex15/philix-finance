@@ -1,14 +1,17 @@
-import { Router, Request, Response } from "express";
+import { Router, Request, Response, NextFunction } from "express";
 import bcrypt from "bcryptjs";
 import { prisma } from "../../lib/prisma";
 import { AppError } from "../../middleware/errorHandler";
 import { authenticatePortal } from "../../middleware/portalAuth";
 
+const wrap = (fn: (req: Request, res: Response, next: NextFunction) => Promise<void>) =>
+  (req: Request, res: Response, next: NextFunction) => fn(req, res, next).catch(next);
+
 const router = Router();
 router.use(authenticatePortal);
 
 // GET /api/portal/me
-router.get("/", async (req: Request, res: Response) => {
+router.get("/", wrap(async (req: Request, res: Response) => {
   const account = await prisma.clientPortalAccount.findUnique({
     where: { id: (req as Request & { portalAccountId: string }).portalAccountId },
     include: {
@@ -24,10 +27,10 @@ router.get("/", async (req: Request, res: Response) => {
   if (!account) throw new AppError("Account not found", 404);
   const { passwordHash, failedLoginCount, lockedUntil, ...safe } = account as Record<string, unknown>;
   res.json(safe);
-});
+}));
 
 // PATCH /api/portal/me — update profile
-router.patch("/", async (req: Request, res: Response) => {
+router.patch("/", wrap(async (req: Request, res: Response) => {
   const id = (req as Request & { portalAccountId: string }).portalAccountId;
   const { phone, address, city, occupation, employer } = req.body;
   const account = await prisma.clientPortalAccount.update({
@@ -36,10 +39,10 @@ router.patch("/", async (req: Request, res: Response) => {
   });
   const { passwordHash, ...safe } = account as Record<string, unknown>;
   res.json(safe);
-});
+}));
 
 // POST /api/portal/me/change-password
-router.post("/change-password", async (req: Request, res: Response) => {
+router.post("/change-password", wrap(async (req: Request, res: Response) => {
   const id = (req as Request & { portalAccountId: string }).portalAccountId;
   const { currentPassword, newPassword } = req.body;
   if (!currentPassword || !newPassword) throw new AppError("Both passwords required", 400);
@@ -54,6 +57,6 @@ router.post("/change-password", async (req: Request, res: Response) => {
   const passwordHash = await bcrypt.hash(newPassword, 12);
   await prisma.clientPortalAccount.update({ where: { id }, data: { passwordHash } });
   res.json({ message: "Password updated" });
-});
+}));
 
 export default router;

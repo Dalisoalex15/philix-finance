@@ -1,17 +1,19 @@
-import { Router, Request, Response } from "express";
+import { Router, Request, Response, NextFunction } from "express";
 import { prisma } from "../../lib/prisma";
 import { AppError } from "../../middleware/errorHandler";
 import { authenticatePortal } from "../../middleware/portalAuth";
 import { Mailer } from "../../lib/mailer";
 
+const wrap = (fn: (req: Request, res: Response, next: NextFunction) => Promise<void>) =>
+  (req: Request, res: Response, next: NextFunction) => fn(req, res, next).catch(next);
+
 const router = Router();
 router.use(authenticatePortal);
 
 // POST /api/portal/kyc — submit KYC documents
-router.post("/", async (req: Request, res: Response) => {
+router.post("/", wrap(async (req: Request, res: Response) => {
   const id = (req as Request & { portalAccountId: string }).portalAccountId;
   const { nrcNumber, documents } = req.body;
-  // documents: Array<{ docType, fileUrl, fileName, mimeType }>
 
   if (!nrcNumber) throw new AppError("NRC number required", 400);
   if (!documents || documents.length === 0) throw new AppError("At least one document required", 400);
@@ -19,10 +21,8 @@ router.post("/", async (req: Request, res: Response) => {
   const account = await prisma.clientPortalAccount.findUnique({ where: { id } });
   if (!account) throw new AppError("Account not found", 404);
 
-  // Delete old docs
   await prisma.kycDocument.deleteMany({ where: { accountId: id } });
 
-  // Create new docs
   await prisma.kycDocument.createMany({
     data: documents.map((d: { docType: string; fileUrl: string; fileName: string; mimeType: string }) => ({
       accountId: id,
@@ -38,10 +38,8 @@ router.post("/", async (req: Request, res: Response) => {
     data: { nrcNumber, kycStatus: "SUBMITTED", kycSubmittedAt: new Date() },
   });
 
-  // Notify client
   Mailer.kycSubmitted({ email: account.email, firstName: account.firstName, id }).catch(() => {});
 
-  // Create in-app notification for staff (internal)
   await prisma.clientNotification.create({
     data: {
       accountId: id,
@@ -54,10 +52,10 @@ router.post("/", async (req: Request, res: Response) => {
 
   const { passwordHash, ...safe } = updated as Record<string, unknown>;
   res.json({ ...safe, message: "KYC documents submitted successfully" });
-});
+}));
 
 // GET /api/portal/kyc — get current KYC status
-router.get("/", async (req: Request, res: Response) => {
+router.get("/", wrap(async (req: Request, res: Response) => {
   const id = (req as Request & { portalAccountId: string }).portalAccountId;
   const account = await prisma.clientPortalAccount.findUnique({
     where: { id },
@@ -72,6 +70,6 @@ router.get("/", async (req: Request, res: Response) => {
     nrcNumber: account.nrcNumber,
     documents: account.kycDocuments,
   });
-});
+}));
 
 export default router;

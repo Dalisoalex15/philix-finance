@@ -1,14 +1,17 @@
-import { Router, Request, Response } from "express";
+import { Router, Request, Response, NextFunction } from "express";
 import { prisma } from "../../lib/prisma";
 import { AppError } from "../../middleware/errorHandler";
 import { authenticatePortal } from "../../middleware/portalAuth";
 import { authenticate } from "../../middleware/auth";
 import { Mailer } from "../../lib/mailer";
 
+const wrap = (fn: (req: Request, res: Response, next: NextFunction) => Promise<void>) =>
+  (req: Request, res: Response, next: NextFunction) => fn(req, res, next).catch(next);
+
 const router = Router();
 
-// Staff-only: GET /api/portal/applications/staff/all — returns all portal loan applications
-router.get("/staff/all", authenticate, async (_req: Request, res: Response) => {
+// Staff-only: GET /api/portal/applications/staff/all
+router.get("/staff/all", authenticate, wrap(async (_req: Request, res: Response) => {
   const apps = await prisma.portalLoanApplication.findMany({
     orderBy: { createdAt: "desc" },
     include: {
@@ -18,10 +21,10 @@ router.get("/staff/all", authenticate, async (_req: Request, res: Response) => {
     },
   });
   res.json(apps);
-});
+}));
 
-// Staff-only: PATCH /api/portal/applications/staff/:id — update status of a portal loan application
-router.patch("/staff/:id", authenticate, async (req: Request, res: Response) => {
+// Staff-only: PATCH /api/portal/applications/staff/:id
+router.patch("/staff/:id", authenticate, wrap(async (req: Request, res: Response) => {
   const { status, rejectedReason, reviewedBy } = req.body;
   const app = await prisma.portalLoanApplication.findUnique({ where: { id: req.params.id } });
   if (!app) throw new AppError("Application not found", 404);
@@ -36,7 +39,7 @@ router.patch("/staff/:id", authenticate, async (req: Request, res: Response) => 
     },
   });
   res.json(updated);
-});
+}));
 
 router.use(authenticatePortal);
 
@@ -45,7 +48,7 @@ function genRef() {
 }
 
 // POST /api/portal/applications
-router.post("/", async (req: Request, res: Response) => {
+router.post("/", wrap(async (req: Request, res: Response) => {
   const id = (req as Request & { portalAccountId: string }).portalAccountId;
   const account = await prisma.clientPortalAccount.findUnique({ where: { id } });
   if (!account) throw new AppError("Account not found", 404);
@@ -84,7 +87,6 @@ router.post("/", async (req: Request, res: Response) => {
     },
   });
 
-  // Send notification email
   Mailer.loanApplicationReceived({
     email: account.email,
     firstName: account.firstName,
@@ -95,26 +97,26 @@ router.post("/", async (req: Request, res: Response) => {
   }).catch(() => {});
 
   res.status(201).json(application);
-});
+}));
 
 // GET /api/portal/applications
-router.get("/", async (req: Request, res: Response) => {
+router.get("/", wrap(async (req: Request, res: Response) => {
   const id = (req as Request & { portalAccountId: string }).portalAccountId;
   const apps = await prisma.portalLoanApplication.findMany({
     where: { accountId: id },
     orderBy: { createdAt: "desc" },
   });
   res.json(apps);
-});
+}));
 
 // GET /api/portal/applications/:id
-router.get("/:appId", async (req: Request, res: Response) => {
+router.get("/:appId", wrap(async (req: Request, res: Response) => {
   const accountId = (req as Request & { portalAccountId: string }).portalAccountId;
   const app = await prisma.portalLoanApplication.findFirst({
     where: { id: req.params.appId, accountId },
   });
   if (!app) throw new AppError("Application not found", 404);
   res.json(app);
-});
+}));
 
 export default router;

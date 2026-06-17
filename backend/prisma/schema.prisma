@@ -104,6 +104,7 @@ model ClientPortalAccount {
   portalLoans         PortalLoanApplication[]
   portalRefreshTokens PortalRefreshToken[]
   notifications       ClientNotification[]
+  kycDocuments        KycDocument[]
 
   @@index([email])
   @@index([clientNumber])
@@ -162,4 +163,16 @@ model ClientNotification {
   isRead       Boolean  @default(false)
   sentViaEmail Boolean  @default(false)
   createdAt    DateTime @default(now())
+}
+
+model KycDocument {
+  id         String              @id @default(uuid())
+  accountId  String
+  account    ClientPortalAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  docType    String
+  // NRC_FRONT | NRC_BACK | SELFIE | PROOF_OF_ADDRESS | PAYSLIP | OTHER
+  fileUrl    String
+  fileName   String
+  mimeType   String   @default("image/jpeg")
+  uploadedAt DateTime @default(now())
 }
