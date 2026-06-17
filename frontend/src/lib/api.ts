@@ -1,4 +1,6 @@
-const BASE = "/api";
+// In production (Vercel) set VITE_API_URL=https://your-backend.railway.app/api
+// In local dev the Vite proxy handles /api → localhost:4000
+const BASE: string = (import.meta.env.VITE_API_URL as string | undefined) ?? "/api";
 
 async function request<T>(path: string, opts: RequestInit = {}): Promise<T> {
   const token = localStorage.getItem("philix_portal_token");
