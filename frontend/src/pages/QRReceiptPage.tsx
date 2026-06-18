@@ -1,5 +1,6 @@
 ﻿import { useState } from "react";
 import { QrCode, Printer, CheckCircle, Search, Download } from "lucide-react";
+import jsPDF from "jspdf";
 
 const K = (n: number) => `K${n.toLocaleString("en-ZM", { minimumFractionDigits: 2 })}`;
 
@@ -9,29 +10,11 @@ const receipts = [
   { id: "rcpt-003", paymentRef: "PAY-20260616-007", loanRef: "PHX-L-2026-0031", client: "Grace Lungu", amount: 2000, method: "Airtel Money", date: "16 Jun 2026 14:45", officer: "Mary Chirwa", verified: true },
 ];
 
-function QRCodeBox({ value, size = 120 }: { value: string; size?: number }) {
-  // Simple visual QR placeholder — in production use qrcode.react library
-  const cells = 21;
-  const cellSize = size / cells;
-  const pattern = Array.from({ length: cells }, (_, r) =>
-    Array.from({ length: cells }, (_, c) => {
-      // finder patterns
-      if ((r < 7 && c < 7) || (r < 7 && c >= cells - 7) || (r >= cells - 7 && c < 7)) return true;
-      // data modules - pseudo-random based on value hash
-      const hash = (value.charCodeAt((r * cells + c) % value.length) + r * 13 + c * 7) % 3;
-      return hash === 0;
-    })
-  );
-
+function QRCodeImg({ value, size = 120 }: { value: string; size?: number }) {
+  const src = `https://api.qrserver.com/v1/create-qrcode/?size=${size}x${size}&data=${encodeURIComponent(value)}&margin=4&bgcolor=ffffff&color=0B1F3A`;
   return (
     <div className="inline-block bg-white p-2 rounded-lg">
-      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-        {pattern.map((row, r) =>
-          row.map((cell, c) =>
-            cell ? <rect key={`${r}-${c}`} x={c * cellSize} y={r * cellSize} width={cellSize} height={cellSize} fill="#000" /> : null
-          )
-        )}
-      </svg>
+      <img src={src} width={size} height={size} alt="QR Code" className="block rounded" />
     </div>
   );
 }
@@ -55,6 +38,51 @@ export default function QRReceiptPage() {
   };
 
   const handlePrint = () => window.print();
+
+  const handleDownloadPDF = () => {
+    const doc = new jsPDF({ unit: "mm", format: "a5" });
+    const r = selected;
+    doc.setFillColor(11, 31, 58);
+    doc.rect(0, 0, 148, 30, "F");
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(14);
+    doc.setFont("helvetica", "bold");
+    doc.text("PHILIX FINANCE LIMITED", 74, 13, { align: "center" });
+    doc.setFontSize(8);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(180, 180, 180);
+    doc.text("Creating A Future Together  ·  Payment Receipt", 74, 20, { align: "center" });
+    doc.setTextColor(30, 30, 30);
+    const rows: [string, string][] = [
+      ["Receipt No.", r.paymentRef],
+      ["Loan Reference", r.loanRef],
+      ["Client Name", r.client],
+      ["Amount Paid", K(r.amount)],
+      ["Payment Method", r.method],
+      ["Date & Time", r.date],
+      ["Recorded By", r.officer],
+      ["Status", "VERIFIED"],
+    ];
+    let y = 40;
+    doc.setFontSize(9);
+    rows.forEach(([label, val]) => {
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(100, 100, 100);
+      doc.text(label, 14, y);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(20, 20, 20);
+      doc.text(val, 100, y);
+      doc.setDrawColor(230, 230, 230);
+      doc.line(14, y + 2, 134, y + 2);
+      y += 10;
+    });
+    doc.setFontSize(7);
+    doc.setTextColor(140, 140, 140);
+    doc.setFont("helvetica", "normal");
+    doc.text("Scan QR code at philixfinance.com/verify to confirm authenticity", 74, y + 10, { align: "center" });
+    doc.text("Philix Finance Ltd  ·  Bank of Zambia Licensed  ·  Lusaka, Zambia", 74, y + 16, { align: "center" });
+    doc.save(`Receipt-${r.paymentRef}.pdf`);
+  };
 
   return (
     <div className="space-y-6">
@@ -144,7 +172,7 @@ export default function QRReceiptPage() {
                 ))}
               </div>
               <div className="flex-shrink-0 text-center">
-                <QRCodeBox value={`PHILIX:${selected.paymentRef}:${selected.loanRef}:${selected.amount}`} size={100} />
+                <QRCodeImg value={`PHILIX:${selected.paymentRef}:${selected.loanRef}:${selected.amount}`} size={100} />
                 <div className="text-xs text-gray-400 mt-1">Scan to verify</div>
               </div>
             </div>
@@ -157,7 +185,7 @@ export default function QRReceiptPage() {
 
           <div className="flex gap-2 mt-3">
             <button onClick={handlePrint} className="btn-secondary flex-1 text-xs py-2"><Printer size={12} /> Print Receipt</button>
-            <button className="btn-primary flex-1 text-xs py-2"><Download size={12} /> Download PDF</button>
+            <button onClick={handleDownloadPDF} className="btn-primary flex-1 text-xs py-2"><Download size={12} /> Download PDF</button>
           </div>
         </div>
       </div>

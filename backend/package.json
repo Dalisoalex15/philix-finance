@@ -34,15 +34,16 @@
     "nodemailer": "^6.9.13",
     "otplib": "^12.0.1",
     "pdfkit": "^0.15.0",
+    "prisma": "^6.0.0",
     "qrcode": "^1.5.3",
+    "resend": "^6.14.0",
     "speakeasy": "^2.0.0",
+    "tsx": "^4.15.5",
+    "typescript": "^5.4.5",
     "uuid": "^10.0.0",
     "winston": "^3.13.0",
     "xlsx": "^0.18.5",
-    "tsx": "^4.15.5",
-    "zod": "^3.23.8",
-    "prisma": "^6.0.0",
-    "typescript": "^5.4.5"
+    "zod": "^3.23.8"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",

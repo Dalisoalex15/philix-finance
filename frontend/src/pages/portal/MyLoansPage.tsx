@@ -3,8 +3,9 @@ import { Link } from "react-router-dom";
 import {
   CreditCard, CheckCircle, Clock, AlertCircle, Calendar, Receipt,
   FileText, ArrowRight, RefreshCw, TrendingUp, ArrowUpCircle,
-  ChevronDown, ChevronUp, X, Zap, AlertTriangle, Info,
+  ChevronDown, ChevronUp, X, Zap, AlertTriangle, Info, Download,
 } from "lucide-react";
+import jsPDF from "jspdf";
 import { useClientAuthStore } from "../../store/clientAuth";
 
 const API = "/api";
@@ -379,6 +380,113 @@ export default function MyLoansPage() {
     setTimeout(() => setSuccessMsg(""), 5000);
   }
 
+  function downloadAgreement(app: LoanApp) {
+    const client = useClientAuthStore.getState().client;
+    const fullName = client ? `${client.firstName} ${client.lastName}` : "Client";
+    const doc = new jsPDF({ unit: "mm", format: "a4" });
+    const monthlyRate = 0.04;
+    const interest = app.amountRequested * monthlyRate * app.termMonths;
+    const total = app.amountRequested + interest;
+    const monthly = total / app.termMonths;
+    const fmtK = (n: number) => `K${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    const approvedDate = app.reviewedAt ? new Date(app.reviewedAt) : new Date();
+    const firstPayment = new Date(approvedDate);
+    firstPayment.setMonth(firstPayment.getMonth() + 1);
+    const finalPayment = new Date(approvedDate);
+    finalPayment.setMonth(finalPayment.getMonth() + app.termMonths);
+    const fmt = (d: Date) => d.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+
+    // Header
+    doc.setFillColor(11, 31, 58);
+    doc.rect(0, 0, 210, 38, "F");
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(18);
+    doc.setFont("helvetica", "bold");
+    doc.text("PHILIX FINANCE LIMITED", 105, 16, { align: "center" });
+    doc.setFontSize(8);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(160, 170, 185);
+    doc.text("LOAN AGREEMENT  ·  Ref: " + app.reference, 105, 24, { align: "center" });
+    doc.text("Creating A Future Together  ·  Bank of Zambia Licensed", 105, 31, { align: "center" });
+
+    // Title
+    doc.setTextColor(11, 31, 58);
+    doc.setFontSize(13);
+    doc.setFont("helvetica", "bold");
+    doc.text("PERSONAL LOAN AGREEMENT", 105, 50, { align: "center" });
+
+    let y = 62;
+    const section = (title: string) => {
+      doc.setFillColor(11, 31, 58);
+      doc.rect(14, y - 4, 182, 8, "F");
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(8);
+      doc.setFont("helvetica", "bold");
+      doc.text(title, 18, y + 0.5);
+      y += 10;
+    };
+    const row = (label: string, value: string) => {
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(100, 100, 100);
+      doc.text(label, 18, y);
+      doc.setTextColor(20, 20, 20);
+      doc.setFont("helvetica", "bold");
+      doc.text(value, 105, y);
+      doc.setDrawColor(220, 225, 230);
+      doc.line(14, y + 2, 196, y + 2);
+      y += 9;
+    };
+
+    section("BORROWER DETAILS");
+    row("Full Name", fullName);
+    row("Client Email", client?.email ?? "—");
+    y += 2;
+
+    section("LOAN PARTICULARS");
+    row("Loan Reference", app.reference);
+    row("Loan Product", app.productType.replace(/_/g, " "));
+    row("Loan Term", `${app.termMonths} Months`);
+    row("Purpose", app.purpose || "—");
+    row("Approval Date", fmt(approvedDate));
+    y += 2;
+
+    section("FINANCIAL BREAKDOWN");
+    row("Principal Amount", fmtK(app.amountRequested));
+    row("Interest Rate", "4% per month (flat)");
+    row("Total Interest Charged", fmtK(interest));
+    doc.setTextColor(245, 166, 35);
+    row("TOTAL REPAYABLE", fmtK(total));
+    doc.setTextColor(20, 20, 20);
+    row("Monthly Instalment", fmtK(monthly));
+    y += 2;
+
+    section("REPAYMENT SCHEDULE");
+    row("First Payment Due", fmt(firstPayment));
+    row("Final Payment Due", fmt(finalPayment));
+    row("Number of Instalments", String(app.termMonths));
+    y += 8;
+
+    // Signature
+    doc.setFontSize(8);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(120, 120, 120);
+    doc.text("Borrower Signature: _________________________", 18, y);
+    doc.text("Date: _________________________", 130, y);
+    y += 10;
+    doc.text("Authorised by Philix Finance: _________________________", 18, y);
+    y += 16;
+
+    // Footer
+    doc.setFillColor(11, 31, 58);
+    doc.rect(0, 282, 210, 15, "F");
+    doc.setTextColor(140, 155, 170);
+    doc.setFontSize(7);
+    doc.text("Philix Finance Ltd  ·  Lusaka, Zambia  ·  info@philixfinance.com  ·  Bank of Zambia Licensed", 105, 290, { align: "center" });
+
+    doc.save(`LoanAgreement-${app.reference}.pdf`);
+  }
+
   return (
     <div className="max-w-3xl mx-auto space-y-6">
 
@@ -569,13 +677,23 @@ export default function MyLoansPage() {
                       </div>
                     )}
 
-                    {app.status === "DISBURSED" && (
-                      <button
-                        onClick={() => setPayApp(app)}
-                        className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold bg-emerald-900/30 border border-emerald-700/50 text-emerald-400 hover:bg-emerald-900/50 rounded-xl transition-colors"
-                      >
-                        <Receipt size={13} /> Mark as Paid
-                      </button>
+                    {(app.status === "APPROVED" || app.status === "DISBURSED") && (
+                      <div className="flex items-center gap-2">
+                        {app.status === "DISBURSED" && (
+                          <button
+                            onClick={() => setPayApp(app)}
+                            className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold bg-emerald-900/30 border border-emerald-700/50 text-emerald-400 hover:bg-emerald-900/50 rounded-xl transition-colors"
+                          >
+                            <Receipt size={13} /> Mark as Paid
+                          </button>
+                        )}
+                        <button
+                          onClick={() => downloadAgreement(app)}
+                          className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold bg-indigo-900/30 border border-indigo-700/50 text-indigo-400 hover:bg-indigo-900/50 rounded-xl transition-colors"
+                        >
+                          <Download size={13} /> Loan Agreement PDF
+                        </button>
+                      </div>
                     )}
 
                     <div className="text-xs text-slate-600">

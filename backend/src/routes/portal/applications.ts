@@ -31,7 +31,11 @@ router.get("/staff/all", authenticate, wrap(async (_req: Request, res: Response)
 // Staff-only: PATCH /api/portal/applications/staff/:id
 router.patch("/staff/:id", authenticate, wrap(async (req: Request, res: Response) => {
   const { status, rejectedReason, reviewedBy } = req.body;
-  const app = await prisma.portalLoanApplication.findUnique({ where: { id: req.params.id } });
+
+  const app = await prisma.portalLoanApplication.findUnique({
+    where: { id: req.params.id },
+    include: { account: { select: { id: true, email: true, firstName: true, lastName: true } } },
+  });
   if (!app) throw new AppError("Application not found", 404);
 
   const updated = await prisma.portalLoanApplication.update({
@@ -43,6 +47,39 @@ router.patch("/staff/:id", authenticate, wrap(async (req: Request, res: Response
       reviewedAt: new Date(),
     },
   });
+
+  // Send email + portal notification asynchronously (don't block the response)
+  setImmediate(async () => {
+    try {
+      const acct = app.account;
+      if (!acct) return;
+      if (status === "APPROVED" || status === "DISBURSED") {
+        await Mailer.loanApproved({
+          email: acct.email,
+          firstName: acct.firstName,
+          lastName: acct.lastName,
+          reference: app.reference,
+          productType: app.productType,
+          amountRequested: app.amountRequested,
+          termMonths: app.termMonths,
+          createdAt: app.createdAt,
+          accountId: acct.id,
+        });
+      } else if (status === "REJECTED") {
+        await Mailer.loanRejected({
+          email: acct.email,
+          firstName: acct.firstName,
+          lastName: acct.lastName,
+          reference: app.reference,
+          productType: app.productType,
+          amountRequested: app.amountRequested,
+          rejectedReason: rejectedReason ?? app.rejectedReason,
+          accountId: acct.id,
+        });
+      }
+    } catch (_) { /* email failure must not break the response */ }
+  });
+
   res.json(updated);
 }));
 
