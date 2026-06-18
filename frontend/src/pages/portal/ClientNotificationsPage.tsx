@@ -28,7 +28,7 @@ export default function ClientNotificationsPage() {
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<Notification | null>(null);
 
-  const authHeader = token ? { Authorization: `Bearer ${token}` } : {};
+  const authHeader: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
 
   const load = useCallback(async () => {
     setLoading(true);
