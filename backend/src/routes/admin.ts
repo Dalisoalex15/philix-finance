@@ -153,12 +153,16 @@ router.get("/summary", wrap(async (_req: Request, res: Response) => {
     approvedToday,
     submittedToday,
     totalApplications,
+    disbursedAgg,
+    activeAgg,
   ] = await Promise.all([
     prisma.clientPortalAccount.count(),
     prisma.portalLoanApplication.count({ where: { status: { in: ["SUBMITTED", "UNDER_REVIEW"] } } }),
     prisma.portalLoanApplication.count({ where: { status: "APPROVED", reviewedAt: { gte: todayStart } } }),
     prisma.portalLoanApplication.count({ where: { createdAt: { gte: todayStart } } }),
     prisma.portalLoanApplication.count(),
+    prisma.portalLoanApplication.aggregate({ _sum: { amountRequested: true }, where: { status: "DISBURSED" } }),
+    prisma.portalLoanApplication.aggregate({ _sum: { amountRequested: true }, where: { status: { in: ["APPROVED", "DISBURSED"] } } }),
   ]);
 
   res.json({
@@ -167,6 +171,8 @@ router.get("/summary", wrap(async (_req: Request, res: Response) => {
     approvedToday,
     submittedToday,
     totalApplications,
+    totalDisbursedAmount: disbursedAgg._sum.amountRequested ?? 0,
+    totalLoanedOut: activeAgg._sum.amountRequested ?? 0,
   });
 }));
 
@@ -256,6 +262,22 @@ router.patch("/portal-accounts/:id/status", wrap(async (req: Request, res: Respo
     select: { id: true, status: true, clientNumber: true },
   });
   res.json(account);
+}));
+
+// DELETE /api/admin/portal-accounts/:id — permanently delete account + all linked data
+router.delete("/portal-accounts/:id", wrap(async (req: Request, res: Response) => {
+  const user = (req as any).user;
+  if (user.role !== "SUPER_ADMIN") {
+    return res.status(403).json({ error: "Only SUPER_ADMIN can delete accounts." });
+  }
+  const id = req.params.id;
+  // Delete in dependency order
+  await prisma.clientNotification.deleteMany({ where: { accountId: id } });
+  await prisma.kycDocument.deleteMany({ where: { accountId: id } });
+  await prisma.portalLoanApplication.deleteMany({ where: { accountId: id } });
+  await prisma.portalRefreshToken.deleteMany({ where: { accountId: id } });
+  await prisma.clientPortalAccount.delete({ where: { id } });
+  res.json({ success: true });
 }));
 
 // POST /api/admin/wipe-demo-data — clean-slate launch (SUPER_ADMIN only)

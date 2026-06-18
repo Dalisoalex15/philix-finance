@@ -128,13 +128,7 @@ export const useLoanApplicationStore = create<LoanApplicationState>()(
       syncFromApi: async () => {
         try {
           const apiApps = await staffApi.getAllPortalApplications();
-          const mapped = apiApps.map(fromApiApp);
-          set(state => {
-            // Merge: API apps take precedence for status; local-only apps kept too
-            const apiIds = new Set(mapped.map(a => a.id));
-            const localOnly = state.applications.filter(a => !apiIds.has(a.id));
-            return { applications: [...mapped, ...localOnly] };
-          });
+          set({ applications: apiApps.map(fromApiApp) });
         } catch {
           // Backend might be down; keep using local state
         }

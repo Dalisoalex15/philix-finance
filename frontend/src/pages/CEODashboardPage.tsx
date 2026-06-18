@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import {
   DollarSign, TrendingUp, CheckCircle, Users,
   Zap, ArrowUpRight, Crown, Clock, XCircle, Activity, FileText,
-  ThumbsUp, ThumbsDown, Banknote, RefreshCw, BarChart2,
+  ThumbsUp, ThumbsDown, Banknote, RefreshCw, BarChart2, Trash2, ShieldOff, ShieldCheck,
 } from "lucide-react";
 import { formatKwacha } from "../lib/mock-data";
 import { useLoanApplicationStore } from "../store/loanApplicationStore";
@@ -60,7 +60,10 @@ export default function CEODashboardPage() {
     submittedToday: 0,
     approvedToday: 0,
     totalApplications: 0,
+    totalDisbursedAmount: 0,
+    totalLoanedOut: 0,
   });
+  const [accountActionLoading, setAccountActionLoading] = useState<string | null>(null);
   const [portalAccounts, setPortalAccounts] = useState<PortalAccount[]>([]);
   const [accountsLoading, setAccountsLoading] = useState(false);
 
@@ -119,6 +122,37 @@ export default function CEODashboardPage() {
       // ignore
     } finally {
       setActionLoading(null);
+    }
+  }
+
+  async function handleAccountStatus(id: string, status: string) {
+    setAccountActionLoading(id + status);
+    try {
+      const token = localStorage.getItem("philix_staff_token");
+      await fetch(`/api/admin/portal-accounts/${id}/status`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ status }),
+      });
+      await fetchPortalAccounts();
+    } catch { /* ignore */ } finally {
+      setAccountActionLoading(null);
+    }
+  }
+
+  async function handleDeleteAccount(id: string, name: string) {
+    if (!window.confirm(`Permanently delete ${name}'s account and all their data? This cannot be undone.`)) return;
+    setAccountActionLoading(id + "DELETE");
+    try {
+      const token = localStorage.getItem("philix_staff_token");
+      await fetch(`/api/admin/portal-accounts/${id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      await fetchPortalAccounts();
+      await fetchActivity();
+    } catch { /* ignore */ } finally {
+      setAccountActionLoading(null);
     }
   }
 
@@ -202,6 +236,34 @@ export default function CEODashboardPage() {
             <div className="text-xs text-navy-500 mt-0.5">{card.sub}</div>
           </div>
         ))}
+      </div>
+
+      {/* Financial totals */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="philix-card p-5 flex items-center gap-4">
+          <div className="p-3 rounded-xl bg-emerald-100 text-emerald-700 flex-shrink-0">
+            <Banknote size={22} />
+          </div>
+          <div>
+            <div className="text-2xl font-bold font-mono text-navy-900">
+              {formatKwacha(portalSummary.totalDisbursedAmount)}
+            </div>
+            <div className="text-xs font-semibold text-navy-600 mt-0.5">Total Disbursed</div>
+            <div className="text-xs text-navy-500">Loans paid out to clients</div>
+          </div>
+        </div>
+        <div className="philix-card p-5 flex items-center gap-4">
+          <div className="p-3 rounded-xl bg-indigo-100 text-indigo-700 flex-shrink-0">
+            <DollarSign size={22} />
+          </div>
+          <div>
+            <div className="text-2xl font-bold font-mono text-navy-900">
+              {formatKwacha(portalSummary.totalLoanedOut)}
+            </div>
+            <div className="text-xs font-semibold text-navy-600 mt-0.5">Total Loaned Out</div>
+            <div className="text-xs text-navy-500">Approved + disbursed combined</div>
+          </div>
+        </div>
       </div>
 
       {/* Portal KPIs — Row 2 (from applications store) */}
@@ -356,24 +418,60 @@ export default function CEODashboardPage() {
                   <th className="text-left pb-2 font-medium">Email</th>
                   <th className="text-left pb-2 font-medium">Status</th>
                   <th className="text-left pb-2 font-medium">Registered</th>
+                  <th className="pb-2 font-medium">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-warm-100">
-                {recentAccounts.map(acc => (
-                  <tr key={acc.id} className="hover:bg-warm-50 transition-colors">
-                    <td className="py-2.5 pr-3 font-mono text-xs text-navy-600">{acc.clientNumber}</td>
-                    <td className="py-2.5 pr-3 text-xs font-medium text-navy-800">{acc.firstName} {acc.lastName}</td>
-                    <td className="py-2.5 pr-3 text-xs text-navy-600">{acc.email}</td>
-                    <td className="py-2.5 pr-3">
-                      <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${STATUS_BADGE[acc.status] ?? "bg-warm-200 text-navy-600 border-warm-300"}`}>
-                        {acc.status.replace("_", " ")}
-                      </span>
-                    </td>
-                    <td className="py-2.5 text-xs text-navy-500">
-                      {new Date(acc.createdAt).toLocaleDateString("en-ZM", { day: "numeric", month: "short", year: "numeric" })}
-                    </td>
-                  </tr>
-                ))}
+                {recentAccounts.map(acc => {
+                  const isLoading = accountActionLoading?.startsWith(acc.id);
+                  const isActive = acc.status === "ACTIVE";
+                  return (
+                    <tr key={acc.id} className="hover:bg-warm-50 transition-colors">
+                      <td className="py-2.5 pr-3 font-mono text-xs text-navy-600">{acc.clientNumber}</td>
+                      <td className="py-2.5 pr-3 text-xs font-medium text-navy-800">{acc.firstName} {acc.lastName}</td>
+                      <td className="py-2.5 pr-3 text-xs text-navy-600">{acc.email}</td>
+                      <td className="py-2.5 pr-3">
+                        <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${STATUS_BADGE[acc.status] ?? "bg-warm-200 text-navy-600 border-warm-300"}`}>
+                          {acc.status.replace("_", " ")}
+                        </span>
+                      </td>
+                      <td className="py-2.5 pr-3 text-xs text-navy-500">
+                        {new Date(acc.createdAt).toLocaleDateString("en-ZM", { day: "numeric", month: "short", year: "numeric" })}
+                      </td>
+                      <td className="py-2.5">
+                        <div className="flex items-center gap-1">
+                          {isActive ? (
+                            <button
+                              onClick={() => handleAccountStatus(acc.id, "SUSPENDED")}
+                              disabled={!!isLoading}
+                              title="Deactivate account"
+                              className="flex items-center gap-1 px-2 py-1 text-[10px] font-semibold bg-amber-100 text-amber-700 border border-amber-200 rounded-lg hover:bg-amber-200 transition-colors disabled:opacity-40"
+                            >
+                              <ShieldOff size={11} /> Deactivate
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => handleAccountStatus(acc.id, "ACTIVE")}
+                              disabled={!!isLoading}
+                              title="Activate account"
+                              className="flex items-center gap-1 px-2 py-1 text-[10px] font-semibold bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-lg hover:bg-emerald-200 transition-colors disabled:opacity-40"
+                            >
+                              <ShieldCheck size={11} /> Activate
+                            </button>
+                          )}
+                          <button
+                            onClick={() => handleDeleteAccount(acc.id, `${acc.firstName} ${acc.lastName}`)}
+                            disabled={!!isLoading}
+                            title="Delete account permanently"
+                            className="flex items-center gap-1 px-2 py-1 text-[10px] font-semibold bg-red-100 text-red-700 border border-red-200 rounded-lg hover:bg-red-200 transition-colors disabled:opacity-40"
+                          >
+                            <Trash2 size={11} /> Delete
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
