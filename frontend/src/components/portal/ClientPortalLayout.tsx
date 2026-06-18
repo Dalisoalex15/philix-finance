@@ -6,7 +6,7 @@ import {
   LogOut, Bell, Menu, X, Shield, Phone, ChevronRight,
   Zap, Home, Calculator
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import PhilixLogo from "../ui/PhilixLogo";
 
 const navItems = [
@@ -28,9 +28,19 @@ const bottomNav = [
   { href: "/portal/profile", icon: User, label: "Profile" },
 ];
 
+function PortalLoader() {
+  return (
+    <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+      <div className="flex flex-col items-center gap-4">
+        <div className="w-10 h-10 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+        <span className="text-slate-500 text-sm">Loading your account…</span>
+      </div>
+    </div>
+  );
+}
+
 export default function ClientPortalLayout() {
   const client = useClientAuthStore(s => s.client);
-  const hasHydrated = useClientAuthStore(s => s._hasHydrated);
   const logout = useClientAuthStore(s => s.logout);
   const navigate = useNavigate();
   const location = useLocation();
@@ -40,24 +50,30 @@ export default function ClientPortalLayout() {
     ? allApplications.filter(a => a.clientId === client.id && a.status !== "PENDING").length
     : 0;
 
+  // Use Zustand's official persist.hasHydrated() + persist.onFinishHydration()
+  // to detect when localStorage has been restored. Never redirect during hydration.
+  const [hydrated, setHydrated] = useState(() => useClientAuthStore.persist.hasHydrated());
+
+  useEffect(() => {
+    // If storage was synchronously read before first render, nothing to do
+    if (useClientAuthStore.persist.hasHydrated()) {
+      setHydrated(true);
+      return;
+    }
+    // Subscribe to hydration completion; returns an unsubscribe function
+    const unsub = useClientAuthStore.persist.onFinishHydration(() => setHydrated(true));
+    // Safety fallback: if onFinishHydration never fires (e.g. empty storage),
+    // resolve after 300ms so the user isn't stuck on the spinner forever.
+    const timer = setTimeout(() => setHydrated(true), 300);
+    return () => { unsub(); clearTimeout(timer); };
+  }, []);
+
   const handleLogout = () => {
     logout();
     navigate("/portal/login");
   };
 
-  // Wait for Zustand to rehydrate from localStorage before deciding to redirect.
-  // Without this check, every page refresh would briefly see client=null and
-  // immediately redirect to login, causing a white screen.
-  if (!hasHydrated) {
-    return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-10 h-10 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
-          <span className="text-slate-500 text-sm">Loading your account…</span>
-        </div>
-      </div>
-    );
-  }
+  if (!hydrated) return <PortalLoader />;
 
   if (!client) {
     return <Navigate to="/portal/login" replace />;

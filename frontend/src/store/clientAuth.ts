@@ -72,8 +72,6 @@ interface ClientAuthState {
   accessToken: string | null;
   refreshToken: string | null;
   isAuthenticated: boolean;
-  _hasHydrated: boolean;
-  setHasHydrated: (val: boolean) => void;
   login: (client: ClientUser, password?: string) => void;
   loginWithApi: (email: string, password: string) => Promise<void>;
   registerWithApi: (data: Record<string, unknown>) => Promise<void>;
@@ -88,8 +86,6 @@ export const useClientAuthStore = create<ClientAuthState>()(
       accessToken: null,
       refreshToken: null,
       isAuthenticated: false,
-      _hasHydrated: false,
-      setHasHydrated: (val) => set({ _hasHydrated: val }),
 
       login: (client) => set({ client, isAuthenticated: true }),
 
@@ -133,9 +129,6 @@ export const useClientAuthStore = create<ClientAuthState>()(
         refreshToken: state.refreshToken,
         isAuthenticated: state.isAuthenticated,
       }),
-      onRehydrateStorage: () => () => {
-        useClientAuthStore.getState().setHasHydrated(true);
-      },
     }
   )
 );
