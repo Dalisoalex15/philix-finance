@@ -1,159 +1,545 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
 import {
-  ChevronDown, ChevronUp, CreditCard, CheckCircle, Clock,
-  AlertCircle, Calendar, Receipt, FileText, ArrowRight
+  CreditCard, CheckCircle, Clock, AlertCircle, Calendar, Receipt,
+  FileText, ArrowRight, RefreshCw, TrendingUp, ArrowUpCircle,
+  ChevronDown, ChevronUp, X, Zap, AlertTriangle, Info,
 } from "lucide-react";
 import { useClientAuthStore } from "../../store/clientAuth";
-import { useLoanApplicationStore } from "../../store/loanApplicationStore";
 
+const API = "/api";
 const K = (n: number) => `K${n.toLocaleString("en-ZM", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 
-const APP_STATUS_STYLES: Record<string, string> = {
-  PENDING:      "bg-amber-900/30 text-amber-400 border-amber-800/40",
+interface LoanApp {
+  id: string;
+  reference: string;
+  productType: string;
+  amountRequested: number;
+  termMonths: number; // represents weeks for short-term loans
+  purpose: string;
+  status: "SUBMITTED" | "UNDER_REVIEW" | "APPROVED" | "REJECTED" | "DISBURSED";
+  createdAt: string;
+  reviewedAt: string | null;
+  rejectedReason: string | null;
+  autoUpgraded?: boolean;
+}
+
+const STATUS_STYLE: Record<string, string> = {
+  SUBMITTED:    "bg-amber-900/30 text-amber-400 border-amber-800/40",
   UNDER_REVIEW: "bg-blue-900/30 text-blue-400 border-blue-800/40",
   APPROVED:     "bg-emerald-900/30 text-emerald-400 border-emerald-800/40",
   REJECTED:     "bg-red-900/30 text-red-400 border-red-800/40",
   DISBURSED:    "bg-indigo-900/30 text-indigo-400 border-indigo-800/40",
 };
 
-const APP_STATUS_DESC: Record<string, string> = {
-  PENDING:      "Submitted — awaiting initial review by Philix Finance",
+const STATUS_DESC: Record<string, string> = {
+  SUBMITTED:    "Submitted — awaiting initial review",
   UNDER_REVIEW: "Being reviewed by a Loan Officer",
   APPROVED:     "Approved! Funds being prepared for disbursement",
   REJECTED:     "Application was not approved at this time",
   DISBURSED:    "Funds have been disbursed to you",
 };
 
-const statusColors: Record<string, string> = {
-  ACTIVE: "bg-emerald-900/30 text-emerald-400 border-emerald-800/40",
-  CLOSED: "bg-slate-800 text-slate-500 border-slate-700",
-  OVERDUE: "bg-red-900/30 text-red-400 border-red-800/40",
-  APPROVED: "bg-blue-900/30 text-blue-400 border-blue-800/40",
-};
+const ACTIVE = ["SUBMITTED", "UNDER_REVIEW", "APPROVED", "DISBURSED"];
+const CAN_UPGRADE = ["SUBMITTED", "UNDER_REVIEW", "APPROVED", "DISBURSED"];
+const CAN_RELOAN  = ["DISBURSED", "REJECTED"];
 
-const scheduleStatusIcon = (s: string) => {
-  if (s === "PAID") return <CheckCircle size={13} className="text-emerald-400" />;
-  if (s === "OVERDUE") return <AlertCircle size={13} className="text-red-400" />;
-  return <Clock size={13} className="text-slate-500" />;
-};
+function UpgradeModal({
+  app, onClose, onDone, token,
+}: { app: LoanApp; onClose: () => void; onDone: (updated: LoanApp) => void; token: string | null }) {
+  const currentWeeks = app.termMonths;
+  const options = [1, 2, 3, 4].filter(w => w > currentWeeks);
+  const [chosen, setChosen] = useState(options[0] ?? 4);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
-// Historical/mock disbursed loans (would come from backend in production)
-const mockLoans = [
-  {
-    id: "loan-hist-001", loanNumber: "PHX-L-2023-0015", product: "Micro Loan",
-    principal: 1500, outstanding: 0, totalRepayable: 1800, interestRate: 6,
-    termMonths: 2, monthsPaid: 2, disbursedAt: "2023-09-01",
-    status: "CLOSED", nextPaymentDate: null, nextPaymentAmount: 0,
-    payments: [
-      { id: "p3", date: "2023-11-01", amount: 900, method: "Cash", reference: "RCP-20231101-001", status: "PAID" },
-      { id: "p4", date: "2023-10-01", amount: 900, method: "Cash", reference: "RCP-20231001-001", status: "PAID" },
-    ],
-    schedule: [
-      { month: 1, dueDate: "2023-10-01", amount: 900, status: "PAID" },
-      { month: 2, dueDate: "2023-11-01", amount: 900, status: "PAID" },
-    ],
-  },
-];
+  async function submit() {
+    setLoading(true);
+    setError("");
+    try {
+      const r = await fetch(`${API}/portal/applications/${app.id}/upgrade`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ newTermWeeks: chosen }),
+      });
+      const data = await r.json();
+      if (!r.ok) { setError(data.error || "Upgrade failed"); return; }
+      onDone(data);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/70" onClick={onClose} />
+      <div className="relative w-full max-w-sm bg-slate-900 border border-slate-700 rounded-2xl p-6 shadow-2xl">
+        <button onClick={onClose} className="absolute top-4 right-4 text-slate-500 hover:text-slate-300"><X size={16} /></button>
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-10 h-10 rounded-xl bg-indigo-600/20 flex items-center justify-center flex-shrink-0">
+            <ArrowUpCircle size={18} className="text-indigo-400" />
+          </div>
+          <div>
+            <div className="font-bold text-slate-100">Upgrade Loan Term</div>
+            <div className="text-xs text-slate-500 font-mono">{app.reference}</div>
+          </div>
+        </div>
+
+        <div className="bg-slate-800/60 border border-slate-700 rounded-xl p-3 mb-4 text-sm">
+          <div className="flex justify-between text-slate-400 mb-1">
+            <span>Current term</span>
+            <span className="font-semibold text-slate-200">{currentWeeks} week{currentWeeks !== 1 ? "s" : ""}</span>
+          </div>
+          <div className="flex justify-between text-slate-400">
+            <span>Amount</span>
+            <span className="font-semibold text-slate-200">{K(app.amountRequested)}</span>
+          </div>
+        </div>
+
+        <div className="mb-4">
+          <div className="text-xs text-slate-500 mb-2 font-semibold uppercase tracking-wide">Upgrade to</div>
+          <div className="grid grid-cols-3 gap-2">
+            {options.map(w => (
+              <button key={w} onClick={() => setChosen(w)}
+                className={`py-3 rounded-xl border text-sm font-bold transition-all ${chosen === w ? "bg-indigo-600 border-indigo-500 text-white" : "bg-slate-800 border-slate-700 text-slate-300 hover:border-indigo-600/50"}`}>
+                {w}W
+              </button>
+            ))}
+          </div>
+          <p className="text-xs text-slate-600 mt-2">
+            Maximum term is <span className="text-amber-400 font-semibold">4 weeks</span>. Upgrading extends your repayment window — additional interest applies.
+          </p>
+        </div>
+
+        {error && <p className="text-xs text-red-400 mb-3">{error}</p>}
+
+        <button onClick={submit} disabled={loading}
+          className="w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-semibold py-3 rounded-xl transition-all">
+          {loading ? <RefreshCw size={14} className="animate-spin" /> : <ArrowUpCircle size={14} />}
+          Upgrade to {chosen} Weeks
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function ReloanModal({
+  app, onClose, onDone, token,
+}: { app: LoanApp; onClose: () => void; onDone: (created: LoanApp) => void; token: string | null }) {
+  const [amount, setAmount] = useState(app.amountRequested);
+  const [weeks, setWeeks] = useState(app.termMonths);
+  const [purpose, setPurpose] = useState(app.purpose);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  async function submit() {
+    setLoading(true);
+    setError("");
+    try {
+      const r = await fetch(`${API}/portal/applications/${app.id}/reloan`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ amountRequested: amount, termWeeks: weeks, purpose }),
+      });
+      const data = await r.json();
+      if (!r.ok) { setError(data.error || "Reloan failed"); return; }
+      onDone(data);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/70" onClick={onClose} />
+      <div className="relative w-full max-w-sm bg-slate-900 border border-slate-700 rounded-2xl p-6 shadow-2xl">
+        <button onClick={onClose} className="absolute top-4 right-4 text-slate-500 hover:text-slate-300"><X size={16} /></button>
+        <div className="flex items-center gap-3 mb-5">
+          <div className="w-10 h-10 rounded-xl bg-emerald-600/20 flex items-center justify-center flex-shrink-0">
+            <RefreshCw size={18} className="text-emerald-400" />
+          </div>
+          <div>
+            <div className="font-bold text-slate-100">Quick Reloan</div>
+            <div className="text-xs text-slate-500">{app.productType.replace(/_/g, " ")} — pre-filled from previous loan</div>
+          </div>
+        </div>
+
+        <div className="space-y-4 mb-5">
+          <div>
+            <label className="text-xs text-slate-500 mb-1 block font-semibold uppercase tracking-wide">Loan Amount (K)</label>
+            <input type="number" value={amount} onChange={e => setAmount(Number(e.target.value))} min={500}
+              className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-slate-200 text-sm focus:outline-none focus:border-indigo-500" />
+          </div>
+
+          <div>
+            <label className="text-xs text-slate-500 mb-2 block font-semibold uppercase tracking-wide">Term</label>
+            <div className="grid grid-cols-4 gap-2">
+              {[1, 2, 3, 4].map(w => (
+                <button key={w} onClick={() => setWeeks(w)}
+                  className={`py-2.5 rounded-xl border text-sm font-bold transition-all ${weeks === w ? "bg-indigo-600 border-indigo-500 text-white" : "bg-slate-800 border-slate-700 text-slate-300 hover:border-indigo-600/50"}`}>
+                  {w}W
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <label className="text-xs text-slate-500 mb-1 block font-semibold uppercase tracking-wide">Purpose</label>
+            <input value={purpose} onChange={e => setPurpose(e.target.value)}
+              className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-slate-200 text-sm focus:outline-none focus:border-indigo-500" />
+          </div>
+        </div>
+
+        <div className="bg-indigo-900/20 border border-indigo-800/30 rounded-xl p-3 mb-4 text-xs text-slate-400">
+          <span className="text-indigo-400 font-semibold">All your KYC, employment and collateral details are pre-filled</span> — just confirm the amount and term.
+        </div>
+
+        {error && <p className="text-xs text-red-400 mb-3">{error}</p>}
+
+        <button onClick={submit} disabled={loading || !purpose || amount < 500}
+          className="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-semibold py-3 rounded-xl transition-all">
+          {loading ? <RefreshCw size={14} className="animate-spin" /> : <Zap size={14} />}
+          Submit Reloan
+        </button>
+      </div>
+    </div>
+  );
+}
 
 export default function MyLoansPage() {
-  const client = useClientAuthStore(s => s.client)!;
-  const allApplications = useLoanApplicationStore(s => s.applications);
-  const myApplications = allApplications.filter(a => a.clientId === client.id);
+  const token = useClientAuthStore(s => s.accessToken);
+  const [apps, setApps] = useState<LoanApp[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const [expanded, setExpanded] = useState<string | null>(null);
-  const [tab, setTab] = useState<Record<string, "history" | "schedule">>({});
-  const getTab = (id: string) => tab[id] ?? "history";
+  const [upgradeTarget, setUpgradeTarget] = useState<LoanApp | null>(null);
+  const [reloanTarget, setReloanTarget] = useState<LoanApp | null>(null);
+  const [successMsg, setSuccessMsg] = useState("");
 
-  const activeApp = myApplications.find(a => a.status === "APPROVED" || a.status === "DISBURSED");
-  const pendingCount = myApplications.filter(a => a.status === "PENDING" || a.status === "UNDER_REVIEW").length;
+  const authHeader = { Authorization: `Bearer ${token}` };
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const r = await fetch(`${API}/portal/applications`, { headers: authHeader });
+      if (r.ok) setApps(await r.json());
+      else setError("Could not load your loans. Please try again.");
+    } catch {
+      setError("Network error — please check your connection.");
+    } finally {
+      setLoading(false);
+    }
+  }, [token]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const autoUpgrades = apps.filter(a => (a as any).autoUpgraded);
+  const activeApps   = apps.filter(a => ACTIVE.includes(a.status));
+  const historyApps  = apps.filter(a => !ACTIVE.includes(a.status));
+
+  function daysLeft(app: LoanApp) {
+    if (!app.reviewedAt) return null;
+    const due = new Date(app.reviewedAt).getTime() + app.termMonths * 7 * 86400000;
+    return Math.ceil((due - Date.now()) / 86400000);
+  }
+
+  function pct(app: LoanApp) {
+    if (!app.reviewedAt) return 0;
+    const total = app.termMonths * 7 * 86400000;
+    const elapsed = Date.now() - new Date(app.reviewedAt).getTime();
+    return Math.min(100, Math.round((elapsed / total) * 100));
+  }
+
+  function handleUpgradeDone(updated: LoanApp) {
+    setApps(prev => prev.map(a => a.id === updated.id ? { ...a, ...updated } : a));
+    setUpgradeTarget(null);
+    setSuccessMsg(`Loan ${updated.reference} upgraded to ${updated.termMonths} weeks.`);
+    setTimeout(() => setSuccessMsg(""), 5000);
+  }
+
+  function handleReloanDone(created: LoanApp) {
+    setApps(prev => [created, ...prev]);
+    setReloanTarget(null);
+    setSuccessMsg(`New loan application ${created.reference} submitted successfully!`);
+    setTimeout(() => setSuccessMsg(""), 5000);
+  }
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-slate-100">My Loans</h1>
-        <p className="text-slate-500 text-sm mt-1">Your loan applications and repayment records</p>
+
+      {/* Modals */}
+      {upgradeTarget && (
+        <UpgradeModal app={upgradeTarget} token={token}
+          onClose={() => setUpgradeTarget(null)} onDone={handleUpgradeDone} />
+      )}
+      {reloanTarget && (
+        <ReloanModal app={reloanTarget} token={token}
+          onClose={() => setReloanTarget(null)} onDone={handleReloanDone} />
+      )}
+
+      {/* Header */}
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-100">My Loans</h1>
+          <p className="text-slate-500 text-sm mt-1">Applications, upgrades and repayment records</p>
+        </div>
+        <button onClick={load} className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-200 bg-slate-800 border border-slate-700 px-3 py-1.5 rounded-xl transition-all">
+          <RefreshCw size={12} className={loading ? "animate-spin" : ""} /> Refresh
+        </button>
       </div>
 
-      {/* Summary cards */}
-      <div className="grid grid-cols-3 gap-3">
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 text-center">
-          <div className="text-xl font-bold text-emerald-400 mb-1">{myApplications.filter(a => a.status === "DISBURSED").length || mockLoans.filter(l => l.status === "ACTIVE").length}</div>
-          <div className="text-xs text-slate-500">Active Loans</div>
-        </div>
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 text-center">
-          <div className="text-xl font-bold text-slate-200 mb-1">{myApplications.length}</div>
-          <div className="text-xs text-slate-500">Applications Submitted</div>
-        </div>
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 text-center">
-          <div className="text-xl font-bold text-amber-400 mb-1">{pendingCount}</div>
-          <div className="text-xs text-slate-500">Pending Review</div>
-        </div>
-      </div>
-
-      {/* Live applications */}
-      {myApplications.length > 0 && (
-        <div className="space-y-3">
-          <div className="flex items-center gap-2">
-            <FileText size={14} className="text-indigo-400" />
-            <h2 className="text-sm font-bold text-slate-300 uppercase tracking-wide">Loan Applications</h2>
-          </div>
-          {myApplications.map(app => (
-            <div key={app.id} className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
-              <div className="flex items-start justify-between gap-3 mb-3">
-                <div>
-                  <div className="font-bold text-slate-200">{app.productName}</div>
-                  <div className="text-xs text-slate-500 font-mono mt-0.5">{app.ref}</div>
-                </div>
-                <span className={`text-xs font-semibold px-2.5 py-1 rounded-full border flex-shrink-0 ${APP_STATUS_STYLES[app.status] ?? ""}`}>
-                  {app.status.replace("_", " ")}
-                </span>
-              </div>
-
-              {/* Status progress bar */}
-              <div className="flex items-center gap-1 mb-3">
-                {(["PENDING", "UNDER_REVIEW", "APPROVED", "DISBURSED"] as const).map((s, i) => {
-                  const steps = ["PENDING", "UNDER_REVIEW", "APPROVED", "DISBURSED"];
-                  const currentIdx = app.status === "REJECTED" ? -1 : steps.indexOf(app.status);
-                  const reached = i <= currentIdx;
-                  return (
-                    <div key={s} className="flex items-center flex-1">
-                      <div className={`h-1.5 w-full rounded-full transition-all ${
-                        app.status === "REJECTED" ? "bg-red-900/40" :
-                        reached ? "bg-indigo-500" : "bg-slate-800"
-                      }`} />
-                    </div>
-                  );
-                })}
-              </div>
-
-              <p className="text-xs text-slate-500 mb-3">{APP_STATUS_DESC[app.status]}</p>
-
-              <div className="grid grid-cols-3 gap-3 text-xs">
-                <div>
-                  <div className="text-slate-500 mb-0.5">Amount</div>
-                  <div className="font-semibold text-slate-200">{K(app.amount)}</div>
-                </div>
-                <div>
-                  <div className="text-slate-500 mb-0.5">Total Repayable</div>
-                  <div className="font-semibold text-emerald-400">{K(app.totalRepayable)}</div>
-                </div>
-                <div>
-                  <div className="text-slate-500 mb-0.5">Duration</div>
-                  <div className="font-semibold text-slate-200">{app.rateDuration}</div>
-                </div>
-              </div>
-
-              <div className="mt-3 pt-3 border-t border-slate-800 flex items-center justify-between text-xs text-slate-600">
-                <span>Submitted {new Date(app.submittedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</span>
-                <span className="font-medium">{app.purpose}</span>
-              </div>
-            </div>
-          ))}
+      {/* Success toast */}
+      {successMsg && (
+        <div className="flex items-center gap-3 bg-emerald-900/30 border border-emerald-800/40 rounded-xl px-4 py-3">
+          <CheckCircle size={14} className="text-emerald-400 flex-shrink-0" />
+          <p className="text-sm text-emerald-300">{successMsg}</p>
         </div>
       )}
 
-      {/* No applications yet */}
-      {myApplications.length === 0 && mockLoans.length === 0 && (
+      {/* Auto-upgrade notice */}
+      {autoUpgrades.length > 0 && (
+        <div className="flex items-start gap-3 bg-amber-900/20 border border-amber-800/40 rounded-xl px-4 py-3">
+          <AlertTriangle size={14} className="text-amber-400 mt-0.5 flex-shrink-0" />
+          <div>
+            <p className="text-sm font-semibold text-amber-300">Loan auto-upgraded to 4 weeks</p>
+            <p className="text-xs text-slate-500 mt-0.5">Your loan was within 3 days of its due date without payment, so it was automatically extended to 4 weeks. Additional interest applies.</p>
+          </div>
+        </div>
+      )}
+
+      {/* Stats */}
+      <div className="grid grid-cols-3 gap-3">
+        {[
+          { label: "Active Loans",       value: activeApps.filter(a => a.status === "DISBURSED").length,  color: "text-emerald-400" },
+          { label: "Applications",        value: apps.length,                                              color: "text-slate-200"   },
+          { label: "Pending Review",      value: apps.filter(a => a.status === "SUBMITTED" || a.status === "UNDER_REVIEW").length, color: "text-amber-400" },
+        ].map(s => (
+          <div key={s.label} className="bg-slate-900 border border-slate-800 rounded-xl p-4 text-center">
+            <div className={`text-xl font-bold mb-1 ${s.color}`}>{s.value}</div>
+            <div className="text-xs text-slate-500">{s.label}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Loading / error */}
+      {loading && (
+        <div className="text-center py-12 text-slate-500 text-sm flex items-center justify-center gap-2">
+          <RefreshCw size={14} className="animate-spin" /> Loading your loans…
+        </div>
+      )}
+      {!loading && error && (
+        <div className="bg-red-900/20 border border-red-800/40 rounded-xl p-4 text-sm text-red-400">{error}</div>
+      )}
+
+      {/* Active applications */}
+      {!loading && activeApps.length > 0 && (
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <FileText size={14} className="text-indigo-400" />
+            <h2 className="text-sm font-bold text-slate-300 uppercase tracking-wide">Active Loans & Applications</h2>
+          </div>
+
+          {activeApps.map(app => {
+            const isOpen = expanded === app.id;
+            const canUpgrade = CAN_UPGRADE.includes(app.status) && app.termMonths < 4;
+            const days = daysLeft(app);
+            const progress = pct(app);
+            const nearDue = days !== null && days <= 3 && days >= 0;
+            const overdue = days !== null && days < 0;
+
+            return (
+              <div key={app.id} className={`bg-slate-900 border rounded-2xl overflow-hidden transition-all ${nearDue ? "border-amber-700/60" : overdue ? "border-red-700/60" : "border-slate-800"}`}>
+                <button onClick={() => setExpanded(isOpen ? null : app.id)}
+                  className="w-full text-left p-5 hover:bg-slate-800/30 transition-all">
+                  <div className="flex items-start justify-between gap-3 mb-3">
+                    <div>
+                      <div className="font-bold text-slate-200">{app.productType.replace(/_/g, " ")}</div>
+                      <div className="text-xs text-slate-500 font-mono mt-0.5">{app.reference}</div>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full border ${STATUS_STYLE[app.status]}`}>
+                        {app.status.replace("_", " ")}
+                      </span>
+                      {isOpen ? <ChevronUp size={14} className="text-slate-500" /> : <ChevronDown size={14} className="text-slate-500" />}
+                    </div>
+                  </div>
+
+                  {/* Progress bar (only for disbursed) */}
+                  {app.status === "DISBURSED" && (
+                    <div className="mb-3">
+                      <div className="flex justify-between text-xs text-slate-500 mb-1">
+                        <span>{app.termMonths} week{app.termMonths !== 1 ? "s" : ""} term</span>
+                        {days !== null && (
+                          <span className={overdue ? "text-red-400 font-semibold" : nearDue ? "text-amber-400 font-semibold" : "text-slate-400"}>
+                            {overdue ? `${Math.abs(days)} days overdue` : days === 0 ? "Due today" : `${days} days left`}
+                          </span>
+                        )}
+                      </div>
+                      <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all duration-500 ${overdue ? "bg-red-500" : nearDue ? "bg-amber-500" : "bg-gradient-to-r from-emerald-600 to-emerald-400"}`}
+                          style={{ width: `${progress}%` }}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Application progress bar */}
+                  {app.status !== "DISBURSED" && (
+                    <div className="flex items-center gap-1 mb-3">
+                      {(["SUBMITTED", "UNDER_REVIEW", "APPROVED", "DISBURSED"] as const).map((s, i) => {
+                        const steps = ["SUBMITTED", "UNDER_REVIEW", "APPROVED", "DISBURSED"];
+                        const idx = steps.indexOf(app.status);
+                        return (
+                          <div key={s} className="flex-1 h-1.5 rounded-full transition-all"
+                            style={{ background: i <= idx ? "#6366f1" : "#1e293b" }} />
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-3 gap-3 text-xs">
+                    <div><div className="text-slate-500 mb-0.5">Amount</div><div className="font-semibold text-slate-200">{K(app.amountRequested)}</div></div>
+                    <div><div className="text-slate-500 mb-0.5">Term</div><div className="font-semibold text-slate-200">{app.termMonths}W</div></div>
+                    <div><div className="text-slate-500 mb-0.5">Purpose</div><div className="font-semibold text-slate-200 truncate">{app.purpose}</div></div>
+                  </div>
+                </button>
+
+                {isOpen && (
+                  <div className="border-t border-slate-800 px-5 py-4 space-y-4">
+                    <p className="text-xs text-slate-500">{STATUS_DESC[app.status]}</p>
+
+                    {app.status === "REJECTED" && app.rejectedReason && (
+                      <div className="bg-red-900/20 border border-red-800/40 rounded-xl p-3 text-xs text-red-400">
+                        <span className="font-semibold">Reason: </span>{app.rejectedReason}
+                      </div>
+                    )}
+
+                    {/* Upgrade section */}
+                    {canUpgrade && (
+                      <div className="bg-indigo-900/20 border border-indigo-800/30 rounded-xl p-4">
+                        <div className="flex items-start gap-3">
+                          <ArrowUpCircle size={16} className="text-indigo-400 mt-0.5 flex-shrink-0" />
+                          <div className="flex-1">
+                            <div className="text-sm font-semibold text-indigo-300 mb-0.5">Upgrade Your Term</div>
+                            <div className="text-xs text-slate-500">
+                              Current: <span className="text-slate-300 font-semibold">{app.termMonths} week{app.termMonths !== 1 ? "s" : ""}</span>.
+                              Upgrade to 3 or 4 weeks to extend your repayment window.
+                            </div>
+                            {nearDue && (
+                              <div className="flex items-center gap-1.5 text-xs text-amber-400 mt-1.5">
+                                <AlertTriangle size={11} /> Due in {days} day{days !== 1 ? "s" : ""} — upgrade now to avoid penalties
+                              </div>
+                            )}
+                          </div>
+                          <button onClick={() => setUpgradeTarget(app)}
+                            className="flex-shrink-0 flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold px-3 py-2 rounded-xl transition-all">
+                            <ArrowUpCircle size={12} /> Upgrade
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {app.termMonths >= 4 && app.status === "DISBURSED" && (
+                      <div className="flex items-center gap-2 text-xs text-slate-500 bg-slate-800/40 border border-slate-700 rounded-xl px-3 py-2">
+                        <Info size={11} className="text-slate-600" /> At maximum 4-week term. No further upgrade available.
+                      </div>
+                    )}
+
+                    <div className="text-xs text-slate-600">
+                      Applied: {new Date(app.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}
+                      {app.reviewedAt && ` · Reviewed: ${new Date(app.reviewedAt).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}`}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* History */}
+      {!loading && historyApps.length > 0 && (
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <Receipt size={14} className="text-slate-500" />
+            <h2 className="text-sm font-bold text-slate-500 uppercase tracking-wide">Past Loans</h2>
+          </div>
+
+          {historyApps.map(app => {
+            const isOpen = expanded === app.id;
+            const canReloan = CAN_RELOAN.includes(app.status) && !activeApps.some(a => ACTIVE.includes(a.status));
+
+            return (
+              <div key={app.id} className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden">
+                <button onClick={() => setExpanded(isOpen ? null : app.id)}
+                  className="w-full text-left p-5 hover:bg-slate-800/30 transition-all">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-slate-800 flex items-center justify-center flex-shrink-0">
+                        <CreditCard size={15} className="text-slate-500" />
+                      </div>
+                      <div>
+                        <div className="font-semibold text-slate-300">{app.productType.replace(/_/g, " ")}</div>
+                        <div className="text-xs text-slate-600 font-mono">{app.reference}</div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${STATUS_STYLE[app.status]}`}>
+                        {app.status}
+                      </span>
+                      {isOpen ? <ChevronUp size={14} className="text-slate-600" /> : <ChevronDown size={14} className="text-slate-600" />}
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-3 gap-3 text-xs mt-3">
+                    <div><div className="text-slate-600 mb-0.5">Amount</div><div className="text-slate-400">{K(app.amountRequested)}</div></div>
+                    <div><div className="text-slate-600 mb-0.5">Term</div><div className="text-slate-400">{app.termMonths}W</div></div>
+                    <div><div className="text-slate-600 mb-0.5">Date</div><div className="text-slate-400">{new Date(app.createdAt).toLocaleDateString("en-GB")}</div></div>
+                  </div>
+                </button>
+
+                {isOpen && (
+                  <div className="border-t border-slate-800 px-5 py-4 space-y-3">
+                    {app.rejectedReason && (
+                      <div className="bg-red-900/20 border border-red-800/40 rounded-xl p-3 text-xs text-red-400">
+                        <span className="font-semibold">Rejection reason: </span>{app.rejectedReason}
+                      </div>
+                    )}
+
+                    {canReloan && (
+                      <div className="bg-emerald-900/20 border border-emerald-800/30 rounded-xl p-4">
+                        <div className="flex items-start gap-3">
+                          <TrendingUp size={16} className="text-emerald-400 mt-0.5 flex-shrink-0" />
+                          <div className="flex-1">
+                            <div className="text-sm font-semibold text-emerald-300 mb-0.5">Apply Again (Reloan)</div>
+                            <div className="text-xs text-slate-500">
+                              All your details are saved. Just confirm the amount and term — no need to re-enter anything.
+                            </div>
+                          </div>
+                          <button onClick={() => setReloanTarget(app)}
+                            className="flex-shrink-0 flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold px-3 py-2 rounded-xl transition-all">
+                            <RefreshCw size={12} /> Reloan
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {!canReloan && activeApps.length > 0 && (
+                      <div className="flex items-center gap-2 text-xs text-slate-500 bg-slate-800/40 border border-slate-700 rounded-xl px-3 py-2">
+                        <Clock size={11} /> You have an active loan. Reloan will be available once it is disbursed.
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Empty state */}
+      {!loading && apps.length === 0 && !error && (
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-10 text-center">
           <CreditCard size={32} className="text-slate-700 mx-auto mb-3" />
           <div className="text-slate-400 font-semibold mb-1">No loans yet</div>
@@ -164,154 +550,12 @@ export default function MyLoansPage() {
         </div>
       )}
 
-      {/* Historical / disbursed loans */}
-      {mockLoans.length > 0 && (
-        <div className="space-y-4">
-          <div className="flex items-center gap-2">
-            <Receipt size={14} className="text-slate-500" />
-            <h2 className="text-sm font-bold text-slate-500 uppercase tracking-wide">Loan History</h2>
-          </div>
-          {mockLoans.map(loan => {
-            const isOpen = expanded === loan.id;
-            const pct = Math.round(((loan.principal - loan.outstanding) / loan.principal) * 100);
-            const currentTab = getTab(loan.id);
-
-            return (
-              <div key={loan.id} className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden">
-                <button onClick={() => setExpanded(isOpen ? null : loan.id)}
-                  className="w-full text-left p-5 flex items-start gap-4 hover:bg-slate-800/30 transition-all">
-                  <div className="w-10 h-10 rounded-xl bg-indigo-600/20 flex items-center justify-center flex-shrink-0">
-                    <CreditCard size={18} className="text-indigo-400" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-bold text-slate-200">{loan.product}</span>
-                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${statusColors[loan.status] ?? statusColors.ACTIVE}`}>
-                        {loan.status}
-                      </span>
-                    </div>
-                    <div className="text-xs text-slate-500 mt-0.5 font-mono">{loan.loanNumber}</div>
-                    <div className="flex gap-4 mt-2 text-sm">
-                      <div><span className="text-slate-500 text-xs">Principal: </span><span className="text-slate-300 font-medium">{K(loan.principal)}</span></div>
-                      {loan.outstanding > 0
-                        ? <div><span className="text-slate-500 text-xs">Outstanding: </span><span className="text-amber-400 font-medium">{K(loan.outstanding)}</span></div>
-                        : <div><span className="text-emerald-400 font-medium text-xs">Fully Repaid ✓</span></div>}
-                    </div>
-                  </div>
-                  <div className="flex-shrink-0 text-slate-600">
-                    {isOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                  </div>
-                </button>
-
-                {isOpen && (
-                  <div className="border-t border-slate-800">
-                    <div className="px-5 pt-4 pb-2">
-                      <div className="flex justify-between text-xs text-slate-500 mb-1.5">
-                        <span>{loan.monthsPaid} / {loan.termMonths} payments made</span>
-                        <span className="text-emerald-400 font-semibold">{pct}% repaid</span>
-                      </div>
-                      <div className="h-2.5 bg-slate-800 rounded-full overflow-hidden">
-                        <div className="h-full bg-gradient-to-r from-emerald-600 to-emerald-400 rounded-full transition-all" style={{ width: `${pct}%` }} />
-                      </div>
-                    </div>
-
-                    <div className="px-5 py-3 grid grid-cols-2 gap-x-8 gap-y-2 text-sm">
-                      {[
-                        { l: "Interest Rate", v: `${loan.interestRate}% / month` },
-                        { l: "Term", v: `${loan.termMonths} months` },
-                        { l: "Total Repayable", v: K(loan.totalRepayable) },
-                        { l: "Disbursed", v: new Date(loan.disbursedAt).toLocaleDateString("en-GB") },
-                      ].map(r => (
-                        <div key={r.l} className="flex justify-between border-b border-slate-800/50 pb-1.5">
-                          <span className="text-slate-500">{r.l}</span>
-                          <span className="text-slate-300 font-medium">{r.v}</span>
-                        </div>
-                      ))}
-                    </div>
-
-                    <div className="px-5 pb-1">
-                      <div className="flex border-b border-slate-800">
-                        {(["history", "schedule"] as const).map(t => (
-                          <button key={t} onClick={() => setTab(prev => ({ ...prev, [loan.id]: t }))}
-                            className={`flex items-center gap-1.5 px-4 py-2.5 text-xs font-semibold border-b-2 transition-all ${currentTab === t ? "border-indigo-500 text-indigo-400" : "border-transparent text-slate-600 hover:text-slate-400"}`}>
-                            {t === "history" ? <Receipt size={12} /> : <Calendar size={12} />}
-                            {t === "history" ? "Payment History" : "Repayment Schedule"}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className="p-5 pt-3 space-y-2">
-                      {currentTab === "history" && (
-                        <>
-                          {loan.payments.length === 0
-                            ? <div className="text-center text-sm text-slate-600 py-6">No payments recorded yet</div>
-                            : loan.payments.map(p => (
-                              <div key={p.id} className="flex items-center justify-between bg-slate-800/40 rounded-xl px-4 py-3">
-                                <div className="flex items-center gap-3">
-                                  <CheckCircle size={14} className="text-emerald-400 flex-shrink-0" />
-                                  <div>
-                                    <div className="text-sm text-slate-300 font-medium">{K(p.amount)}</div>
-                                    <div className="text-xs text-slate-600 mt-0.5">{new Date(p.date).toLocaleDateString("en-GB")} · {p.method}</div>
-                                  </div>
-                                </div>
-                                <div className="text-right">
-                                  <span className="text-xs bg-emerald-900/30 text-emerald-400 border border-emerald-800/40 px-2 py-0.5 rounded-full">{p.status}</span>
-                                  <div className="text-xs text-slate-600 mt-0.5 font-mono truncate max-w-[120px]">{p.reference}</div>
-                                </div>
-                              </div>
-                            ))}
-                        </>
-                      )}
-
-                      {currentTab === "schedule" && (
-                        <div className="overflow-x-auto">
-                          <table className="w-full text-xs">
-                            <thead>
-                              <tr className="border-b border-slate-800">
-                                <th className="text-left text-slate-600 font-semibold py-2 pr-4">#</th>
-                                <th className="text-left text-slate-600 font-semibold py-2 pr-4">Due Date</th>
-                                <th className="text-right text-slate-600 font-semibold py-2 pr-4">Amount</th>
-                                <th className="text-right text-slate-600 font-semibold py-2">Status</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {loan.schedule.map(s => (
-                                <tr key={s.month} className={`border-b border-slate-800/40 ${s.status === "UPCOMING" ? "opacity-60" : ""}`}>
-                                  <td className="py-2.5 pr-4 text-slate-500">{s.month}</td>
-                                  <td className="py-2.5 pr-4 text-slate-300">
-                                    {new Date(s.dueDate).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
-                                  </td>
-                                  <td className="py-2.5 pr-4 text-right font-semibold text-slate-200">{K(s.amount)}</td>
-                                  <td className="py-2.5 text-right">
-                                    <span className="flex items-center gap-1 justify-end">
-                                      {scheduleStatusIcon(s.status)}
-                                      <span className={s.status === "PAID" ? "text-emerald-400" : s.status === "OVERDUE" ? "text-red-400" : "text-slate-500"}>
-                                        {s.status === "UPCOMING" ? "Upcoming" : s.status}
-                                      </span>
-                                    </span>
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {/* Apply CTA */}
-      {myApplications.length > 0 && (
+      {/* Bottom CTA */}
+      {!loading && apps.length > 0 && !activeApps.some(a => ACTIVE.includes(a.status)) && (
         <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 flex items-center justify-between gap-4">
           <div>
-            <div className="font-semibold text-slate-300 text-sm">Need another loan?</div>
-            <div className="text-xs text-slate-600 mt-0.5">Apply for a new loan or contact support for assistance</div>
+            <div className="font-semibold text-slate-300 text-sm">Need a new loan?</div>
+            <div className="text-xs text-slate-600 mt-0.5">Your previous details are saved — apply in seconds</div>
           </div>
           <Link to="/portal/apply" className="flex-shrink-0 flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold px-4 py-2 rounded-xl transition-all">
             Apply <ArrowRight size={12} />
@@ -319,6 +563,7 @@ export default function MyLoansPage() {
         </div>
       )}
 
+      {/* Support */}
       <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 text-center">
         <div className="font-semibold text-slate-300 mb-1">Need help with a loan?</div>
         <div className="text-xs text-slate-500 mb-3">Contact our support team for repayment assistance or loan restructuring</div>

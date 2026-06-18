@@ -57,7 +57,7 @@ export default function ClientPortalLayout() {
       <div className={`fixed inset-y-0 left-0 z-50 w-72 bg-slate-900 border-r border-slate-800/60 flex flex-col transition-transform duration-300 lg:relative lg:translate-x-0 ${mobileOpen ? "translate-x-0" : "-translate-x-full"}`}>
         {/* Logo */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-800/60 flex-shrink-0">
-          <PhilixLogo variant="full" size="sm" />
+          <PhilixLogo variant="full" size="sm" onDark />
           <div className="flex items-center gap-2">
             <span className="text-[10px] font-bold text-indigo-400 bg-indigo-900/40 border border-indigo-800/50 px-2 py-0.5 rounded-full">CLIENT</span>
             <button onClick={() => setMobileOpen(false)} className="lg:hidden text-slate-500 hover:text-slate-300">
@@ -154,7 +154,7 @@ export default function ClientPortalLayout() {
             <Menu size={20} />
           </button>
           <div className="lg:hidden">
-            <PhilixLogo variant="full" size="sm" />
+            <PhilixLogo variant="full" size="sm" onDark />
           </div>
           <div className="flex-1 min-w-0 hidden lg:block">
             <div className="text-sm font-semibold text-slate-300 truncate">

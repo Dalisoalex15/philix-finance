@@ -129,12 +129,13 @@ const navGroups: NavGroup[] = [
   {
     label: "Administration",
     items: [
-      { href: "/users",      icon: UserCog,   label: "Staff",      roles: ["SUPER_ADMIN", "MANAGER"] },
-      { href: "/performance",icon: Activity,  label: "Performance",roles: ["SUPER_ADMIN", "MANAGER"] },
-      { href: "/branches",   icon: Building2, label: "Branches",   roles: ["SUPER_ADMIN"] },
-      { href: "/audit",          icon: Shield,    label: "Audit Logs",    roles: ["SUPER_ADMIN", "MANAGER"] },
-      { href: "/api-management", icon: Webhook,   label: "API Management", roles: ["SUPER_ADMIN"] },
-      { href: "/settings",       icon: Settings,  label: "Settings",       roles: ["SUPER_ADMIN"] },
+      { href: "/users",          icon: UserCog,   label: "Staff",           roles: ["SUPER_ADMIN", "MANAGER"] },
+      { href: "/portal-clients", icon: Globe,     label: "Portal Clients",  roles: ["SUPER_ADMIN", "MANAGER"] },
+      { href: "/performance",    icon: Activity,  label: "Performance",     roles: ["SUPER_ADMIN", "MANAGER"] },
+      { href: "/branches",       icon: Building2, label: "Branches",        roles: ["SUPER_ADMIN"] },
+      { href: "/audit",          icon: Shield,    label: "Audit Logs",      roles: ["SUPER_ADMIN", "MANAGER"] },
+      { href: "/api-management", icon: Webhook,   label: "API Management",  roles: ["SUPER_ADMIN"] },
+      { href: "/settings",       icon: Settings,  label: "Settings",        roles: ["SUPER_ADMIN"] },
     ],
   },
 ];

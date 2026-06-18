@@ -98,7 +98,7 @@ export default function StaffRegisterPage() {
     <div className="min-h-screen bg-slate-950 flex items-center justify-center p-6">
       <div className="max-w-lg w-full">
         <div className="mb-8">
-          <PhilixLogo variant="full" size="md" />
+          <PhilixLogo variant="full" size="md" onDark />
           <div className="text-indigo-400 text-xs mt-1.5">Staff Account Registration</div>
         </div>
 

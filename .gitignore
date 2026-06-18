@@ -44,3 +44,5 @@ backend/prisma/*.db-journal
 
 # Coverage
 coverage/
+
+.vercel

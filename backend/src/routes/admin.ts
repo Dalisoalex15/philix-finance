@@ -170,6 +170,94 @@ router.get("/summary", wrap(async (_req: Request, res: Response) => {
   });
 }));
 
+// GET /api/admin/portal-accounts — list all portal client accounts
+router.get("/portal-accounts", wrap(async (_req: Request, res: Response) => {
+  const accounts = await prisma.clientPortalAccount.findMany({
+    orderBy: { createdAt: "desc" },
+    select: {
+      id: true,
+      clientNumber: true,
+      email: true,
+      firstName: true,
+      lastName: true,
+      phone: true,
+      dateOfBirth: true,
+      gender: true,
+      address: true,
+      city: true,
+      occupation: true,
+      employer: true,
+      monthlyIncome: true,
+      nrcNumber: true,
+      kycStatus: true,
+      status: true,
+      emailVerified: true,
+      lastLoginAt: true,
+      failedLoginCount: true,
+      lockedUntil: true,
+      createdAt: true,
+      _count: { select: { portalLoans: true } },
+    },
+  });
+  // Normalize _count field name for frontend
+  const normalized = (accounts as any[]).map(a => ({
+    ...a,
+    _count: { loanApplications: a._count.portalLoans },
+  }));
+  res.json(normalized);
+}));
+
+// GET /api/admin/portal-accounts/:id — full details for one portal account
+router.get("/portal-accounts/:id", wrap(async (req: Request, res: Response) => {
+  const account = await prisma.clientPortalAccount.findUnique({
+    where: { id: req.params.id },
+    include: {
+      portalLoans: {
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true, reference: true, productType: true, amountRequested: true,
+          status: true, createdAt: true, reviewedAt: true,
+        },
+      },
+      kycDocuments: { select: { id: true, docType: true, uploadedAt: true } },
+      notifications: { orderBy: { createdAt: "desc" }, take: 10 },
+    },
+  });
+  if (!account) return res.status(404).json({ error: "Account not found" });
+  const { passwordHash, portalLoans, ...safe } = account as any;
+  res.json({ ...safe, loanApplications: portalLoans, hasPassword: !!passwordHash });
+}));
+
+// POST /api/admin/portal-accounts/:id/reset-password — admin sets a new password
+router.post("/portal-accounts/:id/reset-password", wrap(async (req: Request, res: Response) => {
+  const { newPassword } = req.body as { newPassword: string };
+  if (!newPassword || newPassword.length < 6) {
+    return res.status(400).json({ error: "Password must be at least 6 characters" });
+  }
+  const bcrypt = require("bcryptjs");
+  const hash = await bcrypt.hash(newPassword, 10);
+  await prisma.clientPortalAccount.update({
+    where: { id: req.params.id },
+    data: { passwordHash: hash, failedLoginCount: 0, lockedUntil: null },
+  });
+  res.json({ success: true, message: "Password reset successfully" });
+}));
+
+// PATCH /api/admin/portal-accounts/:id/status — suspend / activate account
+router.patch("/portal-accounts/:id/status", wrap(async (req: Request, res: Response) => {
+  const { status } = req.body as { status: string };
+  const allowed = ["ACTIVE", "SUSPENDED", "BLACKLISTED", "PENDING_KYC"];
+  if (!allowed.includes(status)) {
+    return res.status(400).json({ error: "Invalid status" });
+  }
+  const account = await prisma.clientPortalAccount.update({
+    where: { id: req.params.id },
+    data: { status },
+    select: { id: true, status: true, clientNumber: true },
+  });
+  res.json(account);
+}));
+
 // POST /api/admin/wipe-demo-data — clean-slate launch (SUPER_ADMIN only)
 router.post("/wipe-demo-data", wrap(async (req: Request, res: Response) => {
   const user = (req as any).user;

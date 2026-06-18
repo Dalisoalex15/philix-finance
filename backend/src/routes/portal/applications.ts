@@ -114,10 +114,29 @@ router.get("/", wrap(async (req: Request, res: Response) => {
     where: { accountId: id },
     orderBy: { createdAt: "desc" },
   });
+
+  // Auto-upgrade: DISBURSED loans < 4 weeks within 3 days of due date
+  const now = Date.now();
+  for (const app of apps) {
+    if (app.status === "DISBURSED" && app.termMonths < 4 && app.reviewedAt) {
+      const disbursedMs = app.reviewedAt.getTime();
+      const dueDateMs = disbursedMs + app.termMonths * 7 * 86400000;
+      const daysUntilDue = (dueDateMs - now) / 86400000;
+      if (daysUntilDue <= 3) {
+        await prisma.portalLoanApplication.update({
+          where: { id: app.id },
+          data: { termMonths: 4 },
+        });
+        (app as any).termMonths = 4;
+        (app as any).autoUpgraded = true;
+      }
+    }
+  }
+
   res.json(apps);
 }));
 
-// GET /api/portal/applications/:id
+// GET /api/portal/applications/:appId
 router.get("/:appId", wrap(async (req: Request, res: Response) => {
   const accountId = (req as Request & { portalAccountId: string }).portalAccountId;
   const app = await prisma.portalLoanApplication.findFirst({
@@ -125,6 +144,110 @@ router.get("/:appId", wrap(async (req: Request, res: Response) => {
   });
   if (!app) throw new AppError("Application not found", 404);
   res.json(app);
+}));
+
+// POST /api/portal/applications/:appId/upgrade — client upgrades loan term (max 4 weeks)
+router.post("/:appId/upgrade", wrap(async (req: Request, res: Response) => {
+  const accountId = (req as Request & { portalAccountId: string }).portalAccountId;
+  const app = await prisma.portalLoanApplication.findFirst({
+    where: { id: req.params.appId, accountId },
+  });
+  if (!app) throw new AppError("Application not found", 404);
+
+  const activeStatuses = ["SUBMITTED", "UNDER_REVIEW", "APPROVED", "DISBURSED"];
+  if (!activeStatuses.includes(app.status)) {
+    throw new AppError("Can only upgrade an active application", 400);
+  }
+  if (app.termMonths >= 4) {
+    throw new AppError("This loan is already at the maximum term of 4 weeks", 400);
+  }
+
+  const { newTermWeeks } = req.body as { newTermWeeks: number };
+  if (!newTermWeeks || newTermWeeks <= app.termMonths || newTermWeeks > 4) {
+    throw new AppError("New term must be greater than current term and at most 4 weeks", 400);
+  }
+
+  const updated = await prisma.portalLoanApplication.update({
+    where: { id: app.id },
+    data: { termMonths: newTermWeeks },
+  });
+
+  // Notify client
+  const account = await prisma.clientPortalAccount.findUnique({ where: { id: accountId } });
+  if (account) {
+    await prisma.clientNotification.create({
+      data: {
+        accountId,
+        subject: "Loan term upgraded",
+        body: `Your loan ${app.reference} has been upgraded from ${app.termMonths} to ${newTermWeeks} weeks.`,
+        category: "LOAN_UPDATE",
+      },
+    });
+  }
+
+  res.json(updated);
+}));
+
+// POST /api/portal/applications/:appId/reloan — reapply using same details
+router.post("/:appId/reloan", wrap(async (req: Request, res: Response) => {
+  const accountId = (req as Request & { portalAccountId: string }).portalAccountId;
+  const account = await prisma.clientPortalAccount.findUnique({ where: { id: accountId } });
+  if (!account) throw new AppError("Account not found", 404);
+
+  const sourceApp = await prisma.portalLoanApplication.findFirst({
+    where: { id: req.params.appId, accountId },
+  });
+  if (!sourceApp) throw new AppError("Application not found", 404);
+
+  // Block if there's already an active application
+  const conflict = await prisma.portalLoanApplication.findFirst({
+    where: { accountId, status: { in: ["SUBMITTED", "UNDER_REVIEW", "APPROVED", "DISBURSED"] } },
+  });
+  if (conflict) {
+    throw new AppError("You already have an active loan application. Wait for it to be disbursed before reloaning.", 400);
+  }
+
+  const { amountRequested, termWeeks, purpose } = req.body as {
+    amountRequested?: number; termWeeks?: number; purpose?: string;
+  };
+
+  const reference = genRef();
+  const reloan = await prisma.portalLoanApplication.create({
+    data: {
+      reference,
+      accountId,
+      productType: sourceApp.productType,
+      amountRequested: amountRequested ? parseFloat(String(amountRequested)) : sourceApp.amountRequested,
+      termMonths: termWeeks ? parseInt(String(termWeeks)) : sourceApp.termMonths,
+      purpose: purpose || sourceApp.purpose,
+      description: sourceApp.description,
+      occupation: sourceApp.occupation,
+      employer: sourceApp.employer,
+      employerPhone: sourceApp.employerPhone,
+      monthlyIncome: sourceApp.monthlyIncome,
+      payDate: sourceApp.payDate,
+      collateralType: sourceApp.collateralType,
+      collateralDesc: sourceApp.collateralDesc,
+      collateralValue: sourceApp.collateralValue,
+      ref1Name: sourceApp.ref1Name,
+      ref1Phone: sourceApp.ref1Phone,
+      ref1Relation: sourceApp.ref1Relation,
+      ref2Name: sourceApp.ref2Name,
+      ref2Phone: sourceApp.ref2Phone,
+      ref2Relation: sourceApp.ref2Relation,
+    },
+  });
+
+  Mailer.loanApplicationReceived({
+    email: account.email,
+    firstName: account.firstName,
+    reference,
+    amount: reloan.amountRequested,
+    product: reloan.productType.replace(/_/g, " "),
+    id: account.id,
+  }).catch(() => {});
+
+  res.status(201).json(reloan);
 }));
 
 export default router;

@@ -1,7 +1,6 @@
 interface Props {
   variant?: "full" | "icon";
   size?: "sm" | "md" | "lg" | "xl";
-  /** Use on dark/navy backgrounds — renders white wordmark */
   onDark?: boolean;
   className?: string;
 }
@@ -10,8 +9,41 @@ const SIZE_MAP = {
   sm:  { full: { h: 36,  iconW: 32,  iconH: 32  }, icon: { w: 32,  h: 32  } },
   md:  { full: { h: 44,  iconW: 40,  iconH: 40  }, icon: { w: 40,  h: 40  } },
   lg:  { full: { h: 56,  iconW: 50,  iconH: 50  }, icon: { w: 56,  h: 56  } },
-  xl:  { full: { h: 64,  iconW: 56,  iconH: 56  }, icon: { w: 72,  h: 72  } },
+  xl:  { full: { h: 64,  iconW: 60,  iconH: 60  }, icon: { w: 72,  h: 72  } },
 };
+
+function SwooshIcon({ w, h, id }: { w: number; h: number; id: string }) {
+  return (
+    <svg width={w} height={h} viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <radialGradient id={`gold-${id}`} cx="60%" cy="35%" r="65%">
+          <stop offset="0%" stopColor="#FFD166" />
+          <stop offset="100%" stopColor="#E8940A" />
+        </radialGradient>
+        <radialGradient id={`silver-${id}`} cx="40%" cy="65%" r="65%">
+          <stop offset="0%" stopColor="#C8C8C8" />
+          <stop offset="100%" stopColor="#7A7A7A" />
+        </radialGradient>
+      </defs>
+
+      {/* Golden swoosh — upper right, arcs outward */}
+      <path
+        d="M33 5 C48 5 60 17 60 32 C60 42 55 50 47 54
+           C43 56 39 56 36 54 C32 52 30 48 31 43
+           C32 38 36 33 38 27 C40 20 39 11 33 5 Z"
+        fill={`url(#gold-${id})`}
+      />
+
+      {/* Silver swoosh — lower left, arcs outward */}
+      <path
+        d="M31 59 C16 59 4 47 4 32 C4 22 9 14 17 10
+           C21 8 25 8 28 10 C32 12 34 16 33 21
+           C32 26 28 31 26 37 C24 44 25 53 31 59 Z"
+        fill={`url(#silver-${id})`}
+      />
+    </svg>
+  );
+}
 
 export default function PhilixLogo({ variant = "full", size = "md", onDark = false, className = "" }: Props) {
   const s = SIZE_MAP[size];
@@ -19,34 +51,24 @@ export default function PhilixLogo({ variant = "full", size = "md", onDark = fal
   if (variant === "icon") {
     const { w, h } = s.icon;
     return (
-      <svg width={w} height={h} viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" className={className}>
-        <defs>
-          <linearGradient id={`ig-${size}`} x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#F5A623" />
-            <stop offset="100%" stopColor="#E8940A" />
-          </linearGradient>
-        </defs>
-        <rect x="2" y="2" width="60" height="60" rx="16" fill={`url(#ig-${size})`} />
-        <rect x="12" y="40" width="9" height="13" rx="2.5" fill="white" opacity="0.85" />
-        <rect x="25" y="30" width="9" height="23" rx="2.5" fill="white" opacity="0.92" />
-        <rect x="38" y="18" width="9" height="35" rx="2.5" fill="white" />
-        <rect x="2" y="2" width="60" height="26" rx="16" fill="white" opacity="0.06" />
-      </svg>
+      <span className={className} style={{ display: "inline-flex" }}>
+        <SwooshIcon w={w} h={h} id={`icon-${size}`} />
+      </span>
     );
   }
 
-  // Full lockup: badge + wordmark
+  // Full lockup: swoosh icon + wordmark
   const { h, iconW, iconH } = s.full;
-  const totalW = iconW + 14 + 120; // icon + gap + text area
-
-  const philixSize = h * 0.42;
-  const financeSize = h * 0.255;
-  const textX = iconW + 14;
-  const philixY = h * 0.46;
-  const financeY = h * 0.82;
-
+  const gap = 10;
+  const textAreaW = 110;
+  const totalW = iconW + gap + textAreaW;
+  const philixSize = h * 0.44;
+  const financeSize = h * 0.26;
+  const textX = iconW + gap;
+  const philixY = h * 0.5;
+  const financeY = h * 0.84;
   const wordmarkColor = onDark ? "#FFFFFF" : "#0F172A";
-  const subColor = onDark ? "rgba(255,255,255,0.6)" : "#64748B";
+  const subColor = onDark ? "rgba(255,255,255,0.55)" : "#64748B";
 
   return (
     <svg
@@ -58,55 +80,42 @@ export default function PhilixLogo({ variant = "full", size = "md", onDark = fal
       className={className}
     >
       <defs>
-        <linearGradient id={`lg-${size}-${onDark ? "d" : "l"}`} x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#F5A623" />
+        <radialGradient id={`gold-full-${size}`} cx="60%" cy="35%" r="65%">
+          <stop offset="0%" stopColor="#FFD166" />
           <stop offset="100%" stopColor="#E8940A" />
-        </linearGradient>
+        </radialGradient>
+        <radialGradient id={`silver-full-${size}`} cx="40%" cy="65%" r="65%">
+          <stop offset="0%" stopColor="#C8C8C8" />
+          <stop offset="100%" stopColor="#7A7A7A" />
+        </radialGradient>
       </defs>
 
-      {/* Badge */}
-      <rect
-        x="1" y="1"
-        width={iconW - 2} height={iconH - 2}
-        rx={iconW * 0.23}
-        fill={`url(#lg-${size}-${onDark ? "d" : "l"})`}
-      />
-      {/* Bar chart marks */}
-      <rect
-        x={iconW * 0.18} y={iconH * 0.62}
-        width={iconW * 0.14} height={iconH * 0.22}
-        rx="2"
-        fill="white" opacity="0.85"
-      />
-      <rect
-        x={iconW * 0.36} y={iconH * 0.46}
-        width={iconW * 0.14} height={iconH * 0.38}
-        rx="2"
-        fill="white" opacity="0.92"
-      />
-      <rect
-        x={iconW * 0.54} y={iconH * 0.28}
-        width={iconW * 0.14} height={iconH * 0.56}
-        rx="2"
-        fill="white"
-      />
-      {/* Top gloss */}
-      <rect
-        x="1" y="1"
-        width={iconW - 2} height={(iconH - 2) * 0.44}
-        rx={iconW * 0.23}
-        fill="white" opacity="0.06"
-      />
+      {/* Golden swoosh */}
+      <g transform={`scale(${iconW / 64} ${iconH / 64})`}>
+        <path
+          d="M33 5 C48 5 60 17 60 32 C60 42 55 50 47 54
+             C43 56 39 56 36 54 C32 52 30 48 31 43
+             C32 38 36 33 38 27 C40 20 39 11 33 5 Z"
+          fill={`url(#gold-full-${size})`}
+        />
+        <path
+          d="M31 59 C16 59 4 47 4 32 C4 22 9 14 17 10
+             C21 8 25 8 28 10 C32 12 34 16 33 21
+             C32 26 28 31 26 37 C24 44 25 53 31 59 Z"
+          fill={`url(#silver-full-${size})`}
+        />
+      </g>
 
       {/* PHILIX wordmark */}
       <text
         x={textX}
         y={philixY}
-        fontFamily="'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif"
+        fontFamily="'Inter', 'Segoe UI', system-ui, sans-serif"
         fontWeight="800"
         fontSize={philixSize}
         fill={wordmarkColor}
         letterSpacing="-0.5"
+        dominantBaseline="middle"
       >
         PHILIX
       </text>
@@ -115,7 +124,7 @@ export default function PhilixLogo({ variant = "full", size = "md", onDark = fal
       <text
         x={textX}
         y={financeY}
-        fontFamily="'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif"
+        fontFamily="'Inter', 'Segoe UI', system-ui, sans-serif"
         fontWeight="500"
         fontSize={financeSize}
         fill={subColor}

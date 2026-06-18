@@ -112,7 +112,7 @@ export default function ClientRegisterPage() {
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 flex flex-col">
       <header className="flex items-center justify-between px-6 py-4 border-b border-slate-800/50">
         <Link to="/portal">
-          <PhilixLogo variant="full" size="sm" />
+          <PhilixLogo variant="full" size="sm" onDark />
         </Link>
         <Link to="/portal/login" className="text-sm text-slate-500 hover:text-slate-300">Already registered? Sign in</Link>
       </header>
