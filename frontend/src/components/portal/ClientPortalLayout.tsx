@@ -30,6 +30,7 @@ const bottomNav = [
 
 export default function ClientPortalLayout() {
   const client = useClientAuthStore(s => s.client);
+  const hasHydrated = useClientAuthStore(s => s._hasHydrated);
   const logout = useClientAuthStore(s => s.logout);
   const navigate = useNavigate();
   const location = useLocation();
@@ -43,6 +44,20 @@ export default function ClientPortalLayout() {
     logout();
     navigate("/portal/login");
   };
+
+  // Wait for Zustand to rehydrate from localStorage before deciding to redirect.
+  // Without this check, every page refresh would briefly see client=null and
+  // immediately redirect to login, causing a white screen.
+  if (!hasHydrated) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-10 h-10 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+          <span className="text-slate-500 text-sm">Loading your account…</span>
+        </div>
+      </div>
+    );
+  }
 
   if (!client) {
     return <Navigate to="/portal/login" replace />;
