@@ -2,14 +2,13 @@ import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { useClientAuthStore } from "../../store/clientAuth";
 import {
-  CreditCard, FileText, Shield, AlertCircle, ChevronRight,
-  TrendingUp, Clock, CheckCircle, Package, Bell, Wallet,
-  Star, Zap, Phone, Calculator,
-  BadgeCheck, ListChecks, Gift, Sparkles, Info, ShieldCheck,
+  CreditCard, FileText, Shield, ChevronRight, TrendingUp, Clock,
+  CheckCircle, Bell, Wallet, Zap, Phone, Calculator, BadgeCheck,
+  ListChecks, Gift, Star, AlertCircle, ArrowRight, Sparkles,
+  ShieldCheck, Receipt, RefreshCw,
 } from "lucide-react";
 import { mockLoanProducts } from "../../lib/mock-data";
 
-// Fields match what GET /api/portal/applications actually returns
 interface PortalApplication {
   id: string;
   reference: string;
@@ -22,93 +21,142 @@ interface PortalApplication {
   reviewedAt?: string | null;
 }
 
-const PRODUCT_COLORS = [
-  "from-indigo-700 to-indigo-900",
-  "from-emerald-700 to-emerald-900",
-  "from-amber-700 to-amber-900",
-  "from-purple-700 to-purple-900",
-];
-const PRODUCT_ICONS = [Wallet, TrendingUp, CreditCard, Package];
+const K = (n: number) => `K${n.toLocaleString("en-ZM", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-// Mini eligibility calculator
-function EligibilityCalc() {
-  const [income, setIncome] = useState(5000);
-  const maxLoan = Math.round(income * 2.5);
-  const monthlyPayment = Math.round(maxLoan / 6 * 1.03);
+const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; dot: string }> = {
+  SUBMITTED:    { label: "Submitted",    color: "text-amber-400",   bg: "bg-amber-900/30 border-amber-700/40",   dot: "bg-amber-400" },
+  UNDER_REVIEW: { label: "Under Review", color: "text-blue-400",    bg: "bg-blue-900/30 border-blue-700/40",     dot: "bg-blue-400 animate-pulse" },
+  APPROVED:     { label: "Approved",     color: "text-emerald-400", bg: "bg-emerald-900/30 border-emerald-700/40", dot: "bg-emerald-400" },
+  DISBURSED:    { label: "Disbursed",    color: "text-indigo-400",  bg: "bg-indigo-900/30 border-indigo-700/40", dot: "bg-indigo-400" },
+  REJECTED:     { label: "Not Approved", color: "text-red-400",     bg: "bg-red-900/30 border-red-700/40",       dot: "bg-red-400" },
+};
 
+// Circular progress SVG
+function CircularProgress({ pct, size = 80, stroke = 7 }: { pct: number; size?: number; stroke?: number }) {
+  const r = (size - stroke) / 2;
+  const circ = 2 * Math.PI * r;
+  const offset = circ - (pct / 100) * circ;
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
-      <div className="flex items-center gap-2 mb-4">
-        <Calculator size={15} className="text-indigo-400" />
-        <h3 className="font-semibold text-slate-300 text-sm">Quick Eligibility Check</h3>
-        <span className="ml-auto text-[10px] text-slate-600 bg-slate-800 px-2 py-0.5 rounded-full">Estimate only</span>
-      </div>
-      <div className="mb-4">
-        <div className="flex justify-between text-xs text-slate-500 mb-1">
-          <span>Monthly Income</span>
-          <span className="text-slate-300 font-semibold">K{income.toLocaleString()}</span>
-        </div>
-        <input
-          type="range" min={1000} max={30000} step={500} value={income}
-          onChange={e => setIncome(Number(e.target.value))}
-          className="w-full accent-indigo-500 cursor-pointer"
-        />
-        <div className="flex justify-between text-[10px] text-slate-700 mt-1">
-          <span>K1,000</span><span>K30,000</span>
-        </div>
-      </div>
-      <div className="grid grid-cols-2 gap-3">
-        <div className="bg-indigo-900/30 border border-indigo-800/30 rounded-xl p-3 text-center">
-          <div className="text-xs text-slate-500 mb-1">Est. Max Loan</div>
-          <div className="text-lg font-bold text-indigo-300">K{maxLoan.toLocaleString()}</div>
-        </div>
-        <div className="bg-slate-800/60 rounded-xl p-3 text-center">
-          <div className="text-xs text-slate-500 mb-1">Monthly Repayment</div>
-          <div className="text-lg font-bold text-slate-300">K{monthlyPayment.toLocaleString()}</div>
-        </div>
-      </div>
-      <Link to="/portal/apply" className="mt-3 w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-2.5 rounded-xl text-sm transition-all">
-        <FileText size={13} /> Apply Now
-      </Link>
-    </div>
+    <svg width={size} height={size} className="-rotate-90">
+      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#1e293b" strokeWidth={stroke} />
+      <circle
+        cx={size / 2} cy={size / 2} r={r} fill="none"
+        stroke="url(#prog-grad)" strokeWidth={stroke}
+        strokeDasharray={circ} strokeDashoffset={offset}
+        strokeLinecap="round" style={{ transition: "stroke-dashoffset 1s ease" }}
+      />
+      <defs>
+        <linearGradient id="prog-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stopColor="#6366f1" />
+          <stop offset="100%" stopColor="#818cf8" />
+        </linearGradient>
+      </defs>
+    </svg>
   );
 }
 
-// Onboarding checklist for new clients
-function OnboardingChecklist({ kycVerified }: { kycVerified: boolean }) {
-  const steps = [
-    { label: "Create your account", done: true },
-    { label: "Verify your identity (KYC)", done: kycVerified, href: "/portal/kyc" },
-    { label: "Apply for your first loan", done: false, href: "/portal/apply" },
-    { label: "Receive disbursement", done: false },
-  ];
-  const completedCount = steps.filter(s => s.done).length;
-  const progressPct = Math.round((completedCount / steps.length) * 100);
+// Premium loan card (credit-card style)
+function LoanCard({ app, pct, monthlyPayment, daysToNext, nextPaymentDate, termMonths, monthsElapsed }: {
+  app: PortalApplication; pct: number; monthlyPayment: number;
+  daysToNext: number; nextPaymentDate: string; termMonths: number; monthsElapsed: number;
+}) {
+  const productLabel = app.productType.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+  const overdue = daysToNext < 0;
+  const nearDue = daysToNext >= 0 && daysToNext <= 3;
 
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
-      <div className="flex items-center gap-2 mb-1">
-        <ListChecks size={15} className="text-indigo-400" />
-        <h3 className="font-semibold text-slate-300 text-sm">Getting Started</h3>
-        <span className="ml-auto text-xs font-bold text-indigo-400">{completedCount}/{steps.length}</span>
+    <div className="relative overflow-hidden rounded-2xl p-6"
+      style={{ background: "linear-gradient(135deg, #0f1f3d 0%, #1a1155 50%, #0e1f3a 100%)" }}>
+      {/* Decorative circles */}
+      <div className="absolute -right-8 -top-8 w-40 h-40 rounded-full opacity-10"
+        style={{ background: "radial-gradient(circle, #F5A623 0%, transparent 70%)" }} />
+      <div className="absolute -left-6 -bottom-6 w-32 h-32 rounded-full opacity-10"
+        style={{ background: "radial-gradient(circle, #6366f1 0%, transparent 70%)" }} />
+
+      {/* Card header */}
+      <div className="relative flex items-start justify-between mb-6">
+        <div>
+          <p className="text-xs font-semibold tracking-widest uppercase" style={{ color: "#F5A623", opacity: 0.8 }}>
+            {productLabel}
+          </p>
+          <p className="text-[11px] text-slate-500 font-mono mt-0.5">{app.reference}</p>
+        </div>
+        <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${STATUS_CONFIG[app.status]?.bg ?? ""} ${STATUS_CONFIG[app.status]?.color ?? ""}`}>
+          {STATUS_CONFIG[app.status]?.label ?? app.status}
+        </span>
       </div>
-      <div className="h-1.5 bg-slate-800 rounded-full mb-4 overflow-hidden">
-        <div className="h-full bg-gradient-to-r from-indigo-600 to-indigo-400 rounded-full transition-all" style={{ width: `${progressPct}%` }} />
+
+      {/* Amount */}
+      <div className="relative mb-6">
+        <p className="text-xs text-slate-500 mb-1">Loan Amount</p>
+        <p className="text-4xl font-black text-white tracking-tight">{K(app.amountRequested)}</p>
+        <p className="text-xs text-slate-500 mt-1">{termMonths} month term</p>
       </div>
-      <div className="space-y-2.5">
-        {steps.map((step, i) => (
-          <div key={i} className={`flex items-center gap-3 p-2.5 rounded-xl transition-all ${!step.done && step.href ? "hover:bg-slate-800/60" : ""}`}>
-            <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 text-[10px] font-bold border ${step.done ? "bg-emerald-500 border-emerald-500 text-white" : "border-slate-700 text-slate-600"}`}>
-              {step.done ? <CheckCircle size={12} /> : i + 1}
+
+      {/* Progress + stats row */}
+      <div className="relative flex items-center gap-5">
+        <div className="relative flex-shrink-0">
+          <CircularProgress pct={pct} size={72} stroke={6} />
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="text-center">
+              <div className="text-sm font-black text-white">{pct}%</div>
+              <div className="text-[8px] text-slate-500">elapsed</div>
             </div>
-            <span className={`text-sm flex-1 ${step.done ? "text-slate-500 line-through" : "text-slate-300"}`}>{step.label}</span>
-            {!step.done && step.href && (
-              <Link to={step.href} className="text-xs text-indigo-400 hover:text-indigo-300 font-semibold flex items-center gap-0.5">
-                Start <ChevronRight size={11} />
-              </Link>
-            )}
           </div>
-        ))}
+        </div>
+
+        <div className="flex-1 space-y-3">
+          <div>
+            <p className="text-[10px] text-slate-500 uppercase tracking-wide">Monthly Repayment</p>
+            <p className="text-lg font-bold text-white">{K(monthlyPayment)}</p>
+          </div>
+          <div>
+            <p className="text-[10px] text-slate-500 uppercase tracking-wide">Next Payment</p>
+            <p className={`text-sm font-semibold ${overdue ? "text-red-400" : nearDue ? "text-amber-400" : "text-slate-200"}`}>
+              {nextPaymentDate
+                ? new Date(nextPaymentDate).toLocaleDateString("en-GB", { day: "numeric", month: "short" })
+                : "—"}
+              {" "}
+              <span className="text-[10px] font-normal opacity-70">
+                {overdue ? `${Math.abs(daysToNext)}d overdue` : daysToNext === 0 ? "today" : `in ${daysToNext}d`}
+              </span>
+            </p>
+          </div>
+        </div>
+
+        <div className="flex-shrink-0 text-right">
+          <p className="text-[10px] text-slate-500 uppercase tracking-wide mb-1">Progress</p>
+          <p className="text-xs text-slate-400">{monthsElapsed}<span className="text-slate-600"> / {termMonths}</span></p>
+          <p className="text-[10px] text-slate-600">months</p>
+        </div>
+      </div>
+
+      {/* Overdue warning */}
+      {overdue && (
+        <div className="relative mt-4 flex items-center gap-2 bg-red-900/30 border border-red-700/40 rounded-xl px-3 py-2">
+          <AlertCircle size={13} className="text-red-400 flex-shrink-0" />
+          <p className="text-xs text-red-300">Payment is overdue. Please contact us immediately.</p>
+        </div>
+      )}
+
+      {/* Near due warning */}
+      {!overdue && nearDue && (
+        <div className="relative mt-4 flex items-center gap-2 bg-amber-900/30 border border-amber-700/40 rounded-xl px-3 py-2">
+          <Clock size={13} className="text-amber-400 flex-shrink-0" />
+          <p className="text-xs text-amber-300">Payment due in {daysToNext} day{daysToNext !== 1 ? "s" : ""} — plan your payment now.</p>
+        </div>
+      )}
+
+      {/* Bottom row */}
+      <div className="relative mt-5 flex items-center justify-between">
+        <Link to="/portal/loans"
+          className="flex items-center gap-1.5 text-xs font-semibold text-indigo-400 hover:text-indigo-300 transition-colors">
+          View full details <ArrowRight size={12} />
+        </Link>
+        <Link to="/portal/loans"
+          className="flex items-center gap-1.5 text-xs font-semibold bg-white/10 hover:bg-white/20 text-white px-3 py-1.5 rounded-xl transition-all">
+          <Receipt size={11} /> Pay Now
+        </Link>
       </div>
     </div>
   );
@@ -118,31 +166,31 @@ export default function ClientDashboardPage() {
   const client = useClientAuthStore(s => s.client);
   const accessToken = useClientAuthStore(s => s.accessToken);
   const [myApplications, setMyApplications] = useState<PortalApplication[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  // All hooks must be called before any early return
   useEffect(() => {
-    if (!accessToken) return;
+    if (!accessToken) { setLoading(false); return; }
     fetch("/api/portal/applications", {
       headers: { Authorization: `Bearer ${accessToken}` },
     })
       .then(r => r.ok ? r.json() : [])
       .then(data => setMyApplications(Array.isArray(data) ? data : []))
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setLoading(false));
   }, [accessToken]);
 
-  // Guard: portal layout should prevent this, but be safe
   if (!client) return null;
 
-  const initials = `${(client.firstName?.[0] ?? "?")}${(client.lastName?.[0] ?? "")}`.toUpperCase();
-
+  const initials = `${client.firstName?.[0] ?? ""}${client.lastName?.[0] ?? ""}`.toUpperCase();
   const activeLoanApp = myApplications.find(a => a.status === "DISBURSED" || a.status === "APPROVED");
   const hasActiveLoan = !!activeLoanApp;
-  const notifCount = myApplications.filter(a => a.status !== "SUBMITTED").length;
+  const pendingApps = myApplications.filter(a => a.status === "SUBMITTED" || a.status === "UNDER_REVIEW");
+  const unreadCount = myApplications.filter(a => a.status !== "SUBMITTED").length;
+  const kycVerified = client.kycStatus === "VERIFIED";
 
-  const hourOfDay = new Date().getHours();
-  const greeting = hourOfDay < 12 ? "Good morning" : hourOfDay < 17 ? "Good afternoon" : "Good evening";
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
 
-  // Safe date calculations — createdAt from API, with NaN protection
   const termMonths = activeLoanApp?.termMonths ?? 3;
   const submittedMs = activeLoanApp ? (new Date(activeLoanApp.createdAt).getTime() || 0) : 0;
   const monthsElapsed = submittedMs > 0
@@ -155,231 +203,316 @@ export default function ClientDashboardPage() {
     ? Math.ceil((new Date(nextPaymentDate).getTime() - Date.now()) / 86400000)
     : 0;
   const monthlyPayment = activeLoanApp
-    ? Math.round(activeLoanApp.amountRequested / Math.max(termMonths, 1))
+    ? Math.round((activeLoanApp.amountRequested * 1.04 * termMonths) / Math.max(termMonths, 1))
     : 0;
 
+  const onboardingSteps = [
+    { label: "Create your account", done: true },
+    { label: "Verify your identity (KYC)", done: kycVerified, href: "/portal/kyc" },
+    { label: "Apply for your first loan", done: myApplications.length > 0, href: "/portal/apply" },
+    { label: "Receive disbursement", done: myApplications.some(a => a.status === "DISBURSED") },
+  ];
+  const onboardingDone = onboardingSteps.filter(s => s.done).length;
+
   return (
-    <div className="space-y-6 pb-8">
-      {/* Hero greeting */}
-      <div className="relative overflow-hidden bg-gradient-to-br from-indigo-900/60 via-slate-900 to-purple-900/30 border border-indigo-800/30 rounded-2xl p-6">
-        <div className="absolute inset-0 opacity-10" style={{ backgroundImage: "radial-gradient(circle at 80% 20%, #6366f1 0%, transparent 50%)" }} />
-        <div className="relative flex items-start justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center font-black text-xl text-white shadow-lg flex-shrink-0">
-              {initials}
+    <div className="max-w-2xl mx-auto space-y-5 pb-10">
+
+      {/* ── HERO BANNER ── */}
+      <div className="relative overflow-hidden rounded-3xl"
+        style={{ background: "linear-gradient(135deg, #0B1F3A 0%, #0f2d4a 60%, #1a1155 100%)", minHeight: 180 }}>
+        {/* Decorative blobs */}
+        <div className="absolute top-0 right-0 w-64 h-64 opacity-20 pointer-events-none"
+          style={{ background: "radial-gradient(circle at 80% 20%, #F5A623 0%, transparent 60%)" }} />
+        <div className="absolute bottom-0 left-0 w-48 h-48 opacity-10 pointer-events-none"
+          style={{ background: "radial-gradient(circle at 20% 80%, #6366f1 0%, transparent 60%)" }} />
+
+        <div className="relative p-6 pb-5">
+          {/* Top row */}
+          <div className="flex items-start justify-between gap-3 mb-5">
+            {/* Avatar */}
+            <div className="relative flex-shrink-0">
+              <div
+                className="w-16 h-16 rounded-2xl flex items-center justify-center font-black text-2xl text-white shadow-xl"
+                style={{ background: "linear-gradient(135deg, #4f46e5, #7c3aed)" }}>
+                {initials}
+              </div>
+              {kycVerified && (
+                <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-emerald-500 border-2 border-slate-900 flex items-center justify-center">
+                  <BadgeCheck size={10} className="text-white" />
+                </div>
+              )}
             </div>
-            <div>
-              <p className="text-slate-400 text-sm">{greeting},</p>
-              <h1 className="text-2xl font-bold text-white">{client.firstName} {client.lastName}</h1>
-              <div className="flex items-center gap-2 mt-1">
-                <span className="text-xs text-indigo-400 font-mono">{client.clientNumber}</span>
-                {client.kycStatus === "VERIFIED" && (
-                  <span className="flex items-center gap-1 text-[10px] text-emerald-400 bg-emerald-900/30 border border-emerald-800/40 px-2 py-0.5 rounded-full">
+
+            {/* Name + number */}
+            <div className="flex-1 min-w-0">
+              <p className="text-xs text-slate-400">{greeting},</p>
+              <h1 className="text-xl font-black text-white truncate">{client.firstName} {client.lastName}</h1>
+              <div className="flex items-center gap-2 mt-1 flex-wrap">
+                <span className="text-[10px] font-mono text-slate-500 bg-white/5 px-2 py-0.5 rounded-full">
+                  {client.clientNumber}
+                </span>
+                {kycVerified ? (
+                  <span className="text-[10px] font-semibold text-emerald-400 bg-emerald-900/30 border border-emerald-700/40 px-2 py-0.5 rounded-full flex items-center gap-1">
                     <BadgeCheck size={8} /> KYC Verified
+                  </span>
+                ) : (
+                  <span className="text-[10px] font-semibold text-amber-400 bg-amber-900/30 border border-amber-700/40 px-2 py-0.5 rounded-full">
+                    Verify ID
                   </span>
                 )}
               </div>
             </div>
-          </div>
-          <Link to="/portal/apply" className="hidden sm:flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-4 py-2.5 rounded-xl text-sm transition-all shadow-lg shadow-indigo-900/40">
-            <Zap size={14} /> Apply Now
-          </Link>
-        </div>
 
-        {/* Stats strip — only for active loan holders */}
-        {hasActiveLoan && activeLoanApp && (
-          <div className="relative grid grid-cols-3 gap-3 mt-5">
+            {/* Apply button */}
+            <Link to="/portal/apply"
+              className="hidden sm:flex items-center gap-1.5 text-xs font-bold px-4 py-2.5 rounded-xl shadow-lg flex-shrink-0 transition-all hover:opacity-90"
+              style={{ background: "#F5A623", color: "#0B1F3A" }}>
+              <Zap size={13} /> Apply Now
+            </Link>
+          </div>
+
+          {/* Stats strip */}
+          <div className="grid grid-cols-3 gap-2.5">
             {[
-              { label: "Outstanding", value: `K${activeLoanApp.amountRequested.toLocaleString()}`, color: "text-amber-400", sub: "active loan" },
-              { label: "Next Payment", value: `K${monthlyPayment.toLocaleString()}`, color: "text-slate-200", sub: `in ${daysToNext} day${daysToNext !== 1 ? "s" : ""}` },
-              { label: "Term Progress", value: `${pct}%`, color: "text-emerald-400", sub: `${monthsElapsed}/${termMonths} months` },
+              {
+                label: "Total Applied",
+                value: myApplications.length > 0 ? `K${myApplications.reduce((s, a) => s + a.amountRequested, 0).toLocaleString()}` : "—",
+                sub: `${myApplications.length} application${myApplications.length !== 1 ? "s" : ""}`,
+                color: "text-indigo-300",
+              },
+              {
+                label: "Active Loan",
+                value: activeLoanApp ? K(activeLoanApp.amountRequested) : "None",
+                sub: activeLoanApp ? activeLoanApp.status : "Apply today",
+                color: activeLoanApp ? "text-amber-300" : "text-slate-400",
+              },
+              {
+                label: "Notifications",
+                value: unreadCount > 0 ? String(unreadCount) : "0",
+                sub: "loan updates",
+                color: unreadCount > 0 ? "text-red-400" : "text-slate-400",
+              },
             ].map(s => (
-              <div key={s.label} className="bg-white/5 border border-white/10 rounded-xl p-3 text-center">
-                <div className={`text-lg font-bold ${s.color}`}>{s.value}</div>
-                <div className="text-[10px] text-slate-500 mt-0.5">{s.label}</div>
-                <div className="text-[9px] text-slate-600">{s.sub}</div>
+              <div key={s.label}
+                className="rounded-2xl px-3 py-2.5 text-center"
+                style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.07)" }}>
+                <p className={`text-base font-black ${s.color}`}>{s.value}</p>
+                <p className="text-[9px] text-slate-500 mt-0.5 leading-tight">{s.label}</p>
+                <p className="text-[8px] text-slate-700 leading-tight">{s.sub}</p>
               </div>
             ))}
           </div>
-        )}
-
-        {/* No-loan welcome strip */}
-        {!hasActiveLoan && (
-          <div className="relative flex items-center gap-3 mt-5 bg-white/5 border border-white/10 rounded-xl p-3">
-            <Sparkles size={16} className="text-indigo-400 flex-shrink-0" />
-            <p className="text-sm text-slate-400">Welcome to Philix Finance! Complete your profile and apply for your first loan.</p>
-          </div>
-        )}
+        </div>
       </div>
 
-      {/* KYC alert */}
-      {client.kycStatus !== "VERIFIED" && (
-        <div className="flex items-center gap-3 bg-amber-900/20 border border-amber-800/40 rounded-2xl p-4">
+      {/* ── KYC ALERT ── */}
+      {!kycVerified && (
+        <div className="flex items-center gap-4 rounded-2xl p-4"
+          style={{ background: "linear-gradient(135deg, rgba(217,119,6,0.15), rgba(120,53,15,0.1))", border: "1px solid rgba(217,119,6,0.3)" }}>
           <div className="w-10 h-10 rounded-xl bg-amber-500/20 flex items-center justify-center flex-shrink-0">
-            <AlertCircle size={18} className="text-amber-400" />
+            <Shield size={18} className="text-amber-400" />
           </div>
-          <div className="flex-1">
-            <div className="font-semibold text-amber-400 text-sm">Complete Identity Verification</div>
-            <div className="text-xs text-slate-500 mt-0.5">Upload your NRC to unlock full loan access and higher limits</div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-bold text-amber-300">Complete your identity verification</p>
+            <p className="text-xs text-slate-500 mt-0.5">Upload your NRC to unlock full loan access and higher limits</p>
           </div>
-          <Link to="/portal/kyc" className="text-xs bg-amber-600 hover:bg-amber-500 text-white px-3 py-1.5 rounded-lg font-semibold whitespace-nowrap transition-all">
-            Verify Now
+          <Link to="/portal/kyc"
+            className="flex-shrink-0 text-xs font-bold px-3 py-2 rounded-xl transition-all hover:opacity-90"
+            style={{ background: "#F5A623", color: "#0B1F3A" }}>
+            Verify
           </Link>
         </div>
       )}
 
-      {/* Active loan card */}
-      {hasActiveLoan && activeLoanApp ? (
+      {/* ── PENDING REVIEW PILLS ── */}
+      {pendingApps.length > 0 && (
+        <div className="flex items-center gap-2 bg-blue-900/20 border border-blue-700/30 rounded-2xl px-4 py-3">
+          <div className="w-2 h-2 rounded-full bg-blue-400 animate-pulse flex-shrink-0" />
+          <p className="text-sm text-blue-300 flex-1">
+            <span className="font-bold">{pendingApps.length}</span> application{pendingApps.length > 1 ? "s" : ""} being reviewed by our team
+          </p>
+          <Link to="/portal/loans" className="text-xs font-semibold text-blue-400 hover:text-blue-300 flex items-center gap-0.5">
+            Track <ChevronRight size={11} />
+          </Link>
+        </div>
+      )}
+
+      {/* ── ACTIVE LOAN CARD ── */}
+      {loading ? (
+        <div className="flex items-center justify-center py-10 text-slate-600">
+          <RefreshCw size={18} className="animate-spin mr-2" /> Loading your loan…
+        </div>
+      ) : hasActiveLoan && activeLoanApp ? (
         <div>
           <div className="flex items-center justify-between mb-3">
-            <h2 className="font-bold text-slate-200">Active Loan</h2>
-            <Link to="/portal/loans" className="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1">
-              View all <ChevronRight size={12} />
+            <h2 className="text-sm font-bold text-slate-400 uppercase tracking-wider">Active Loan</h2>
+            <Link to="/portal/loans" className="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-0.5">
+              Manage <ChevronRight size={11} />
             </Link>
           </div>
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <div className="font-bold text-slate-200">{activeLoanApp.productType.replace(/_/g, " ")}</div>
-                <div className="text-xs text-slate-500 font-mono">{activeLoanApp.reference}</div>
-              </div>
-              <span className="bg-emerald-900/40 border border-emerald-700/40 text-emerald-400 text-xs font-semibold px-3 py-1 rounded-full">{activeLoanApp.status}</span>
-            </div>
-
-            <div className="mb-4">
-              <div className="flex justify-between text-xs text-slate-500 mb-1.5">
-                <span>{monthsElapsed} of {termMonths} months elapsed</span>
-                <span className="text-emerald-400 font-semibold">{pct}% term elapsed</span>
-              </div>
-              <div className="h-3 bg-slate-800 rounded-full overflow-hidden">
-                <div className="h-full bg-gradient-to-r from-emerald-600 to-emerald-400 rounded-full transition-all" style={{ width: `${pct}%` }} />
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between bg-indigo-900/20 border border-indigo-800/30 rounded-xl px-4 py-3">
-              <div className="flex items-center gap-2">
-                <Clock size={14} className="text-indigo-400" />
-                <div>
-                  <div className="text-xs text-slate-500">Next payment due</div>
-                  <div className="text-sm font-semibold text-slate-200">
-                    {nextPaymentDate ? new Date(nextPaymentDate).toLocaleDateString("en-GB", { day: "numeric", month: "long" }) : "—"}
-                  </div>
-                </div>
-              </div>
-              <div className="text-right">
-                <div className="text-xl font-bold text-indigo-300">K{monthlyPayment.toLocaleString()}</div>
-                <div className="text-xs text-slate-600">{daysToNext > 0 ? `${daysToNext} days away` : "Due soon"}</div>
-              </div>
-            </div>
-          </div>
+          <LoanCard
+            app={activeLoanApp} pct={pct} monthlyPayment={monthlyPayment}
+            daysToNext={daysToNext} nextPaymentDate={nextPaymentDate}
+            termMonths={termMonths} monthsElapsed={monthsElapsed}
+          />
         </div>
       ) : (
-        /* No active loan state */
-        <div>
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="font-bold text-slate-200">Active Loan</h2>
+        /* No loan empty state */
+        <div className="rounded-2xl border border-dashed border-slate-700 p-8 text-center"
+          style={{ background: "rgba(15,23,42,0.6)" }}>
+          <div className="w-14 h-14 rounded-2xl mx-auto mb-4 flex items-center justify-center"
+            style={{ background: "linear-gradient(135deg, rgba(79,70,229,0.2), rgba(99,102,241,0.1))" }}>
+            <CreditCard size={24} className="text-indigo-400" />
           </div>
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 text-center">
-            <div className="w-12 h-12 rounded-2xl bg-indigo-900/40 flex items-center justify-center mx-auto mb-3">
-              <CreditCard size={22} className="text-indigo-400" />
-            </div>
-            <div className="font-semibold text-slate-300 mb-1">No active loan</div>
-            <div className="text-xs text-slate-500 mb-4">You don't have an active or approved loan yet.</div>
-            <Link to="/portal/apply" className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-5 py-2.5 rounded-xl text-sm transition-all">
-              <FileText size={13} /> Apply Now
-            </Link>
-          </div>
+          <p className="font-bold text-slate-300 mb-1">No active loan</p>
+          <p className="text-xs text-slate-600 mb-5 max-w-xs mx-auto">
+            Apply for your first loan and manage everything from this dashboard.
+          </p>
+          <Link to="/portal/apply"
+            className="inline-flex items-center gap-2 text-sm font-bold px-6 py-3 rounded-xl shadow-lg transition-all hover:opacity-90"
+            style={{ background: "#F5A623", color: "#0B1F3A" }}>
+            <FileText size={14} /> Apply for a Loan
+          </Link>
         </div>
       )}
 
-      {/* New clients — onboarding + eligibility side by side */}
-      {!hasActiveLoan && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-          <OnboardingChecklist kycVerified={client.kycStatus === "VERIFIED"} />
-          <EligibilityCalc />
-        </div>
-      )}
-
-      {/* Quick actions */}
+      {/* ── QUICK ACTIONS ── */}
       <div>
-        <h2 className="font-bold text-slate-200 mb-3">Quick Actions</h2>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <h2 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-3">Quick Actions</h2>
+        <div className="grid grid-cols-4 gap-2.5">
           {[
-            { to: "/portal/apply", icon: FileText, label: "Apply for Loan", color: "from-indigo-600 to-indigo-700", glow: "shadow-indigo-900/40" },
-            { to: "/portal/calculator", icon: Calculator, label: "Loan Calculator", color: "from-emerald-700 to-emerald-800", glow: "shadow-emerald-900/40" },
-            { to: "/portal/kyc", icon: Shield, label: "KYC Verify", color: "from-amber-600 to-amber-700", glow: "shadow-amber-900/40" },
-            { to: "/portal/loans", icon: CreditCard, label: "My Loans", color: "from-purple-700 to-purple-800", glow: "shadow-purple-900/40" },
+            { to: "/portal/apply",      icon: FileText,    label: "Apply",      grad: "from-indigo-600 to-violet-700",  shadow: "rgba(99,102,241,0.3)" },
+            { to: "/portal/loans",      icon: CreditCard,  label: "My Loans",   grad: "from-emerald-600 to-teal-700",  shadow: "rgba(16,185,129,0.3)" },
+            { to: "/portal/calculator", icon: Calculator,  label: "Calculator", grad: "from-amber-500 to-orange-600",  shadow: "rgba(245,158,11,0.3)" },
+            { to: "/portal/kyc",        icon: ShieldCheck, label: "KYC",        grad: "from-rose-600 to-pink-700",     shadow: "rgba(244,63,94,0.3)" },
           ].map(a => (
             <Link key={a.to} to={a.to}
-              className={`bg-gradient-to-br ${a.color} hover:opacity-90 rounded-2xl p-4 flex flex-col gap-3 transition-all shadow-lg ${a.glow} group`}>
+              className={`bg-gradient-to-br ${a.grad} rounded-2xl p-3 flex flex-col items-center gap-2 text-center transition-all hover:opacity-90 hover:scale-105`}
+              style={{ boxShadow: `0 4px 16px ${a.shadow}` }}>
               <a.icon size={20} className="text-white/90" />
-              <span className="text-xs font-semibold text-white leading-tight">{a.label}</span>
+              <span className="text-[10px] font-bold text-white leading-tight">{a.label}</span>
             </Link>
           ))}
         </div>
       </div>
 
-      {/* Loan products — shown to ALL clients */}
+      {/* ── APPLICATION TIMELINE ── */}
+      {myApplications.length > 0 && (
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-sm font-bold text-slate-400 uppercase tracking-wider">My Applications</h2>
+            <Link to="/portal/loans" className="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-0.5">
+              View all <ChevronRight size={11} />
+            </Link>
+          </div>
+          <div className="space-y-2.5">
+            {myApplications.slice(0, 3).map(app => {
+              const cfg = STATUS_CONFIG[app.status] ?? STATUS_CONFIG.SUBMITTED;
+              return (
+                <Link key={app.id} to="/portal/loans"
+                  className="flex items-center gap-4 rounded-2xl px-4 py-3.5 transition-all hover:border-slate-600"
+                  style={{ background: "rgba(15,23,42,0.8)", border: "1px solid rgba(30,41,59,1)" }}>
+                  <div className="flex-shrink-0">
+                    <div className={`w-2.5 h-2.5 rounded-full ${cfg.dot}`} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-slate-200 truncate">
+                      {app.productType.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())}
+                    </p>
+                    <p className="text-[10px] text-slate-600 font-mono">{app.reference}</p>
+                  </div>
+                  <div className="text-right flex-shrink-0">
+                    <p className="text-sm font-bold text-slate-200">{K(app.amountRequested)}</p>
+                    <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${cfg.bg} ${cfg.color}`}>
+                      {cfg.label}
+                    </span>
+                  </div>
+                  <ChevronRight size={13} className="text-slate-700 flex-shrink-0" />
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ── ONBOARDING CHECKLIST (new clients only) ── */}
+      {!hasActiveLoan && onboardingDone < 4 && (
+        <div className="rounded-2xl p-5" style={{ background: "rgba(15,23,42,0.8)", border: "1px solid rgba(30,41,59,1)" }}>
+          <div className="flex items-center gap-2 mb-4">
+            <ListChecks size={15} className="text-indigo-400" />
+            <span className="text-sm font-bold text-slate-300">Getting Started</span>
+            <span className="ml-auto text-xs font-bold" style={{ color: "#F5A623" }}>{onboardingDone}/4</span>
+          </div>
+          <div className="h-1.5 rounded-full bg-slate-800 mb-4 overflow-hidden">
+            <div className="h-full rounded-full transition-all"
+              style={{ width: `${(onboardingDone / 4) * 100}%`, background: "linear-gradient(90deg, #4f46e5, #F5A623)" }} />
+          </div>
+          <div className="space-y-2">
+            {onboardingSteps.map((s, i) => (
+              <div key={i} className="flex items-center gap-3">
+                <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 text-[10px] font-bold border transition-all ${s.done ? "bg-emerald-500 border-emerald-500 text-white" : "border-slate-700 text-slate-600"}`}>
+                  {s.done ? <CheckCircle size={11} /> : i + 1}
+                </div>
+                <span className={`text-sm flex-1 ${s.done ? "line-through text-slate-600" : "text-slate-300"}`}>{s.label}</span>
+                {!s.done && s.href && (
+                  <Link to={s.href} className="text-[10px] font-bold flex items-center gap-0.5 hover:opacity-80 transition-opacity"
+                    style={{ color: "#F5A623" }}>
+                    Start <ChevronRight size={10} />
+                  </Link>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── LOAN PRODUCTS GRID ── */}
       <div>
         <div className="flex items-center justify-between mb-3">
-          <h2 className="font-bold text-slate-200">Our Loan Products</h2>
-          <Link to="/portal/apply" className="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1">Apply <ChevronRight size={12} /></Link>
+          <h2 className="text-sm font-bold text-slate-400 uppercase tracking-wider">Our Products</h2>
+          <Link to="/portal/apply" className="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-0.5">
+            Apply <ChevronRight size={11} />
+          </Link>
         </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-3">
+        <div className="grid grid-cols-2 gap-3">
           {mockLoanProducts.filter(p => p.isActive).map((prod, i) => {
-            const Icon = PRODUCT_ICONS[i % PRODUCT_ICONS.length];
-            const color = PRODUCT_COLORS[i % PRODUCT_COLORS.length];
+            const grads = [
+              "linear-gradient(135deg, #1e1b4b, #312e81)",
+              "linear-gradient(135deg, #064e3b, #065f46)",
+              "linear-gradient(135deg, #451a03, #78350f)",
+              "linear-gradient(135deg, #4a044e, #6b21a8)",
+            ];
+            const accentColors = ["#818cf8", "#34d399", "#fbbf24", "#c084fc"];
+            const grad = grads[i % grads.length];
+            const accent = accentColors[i % accentColors.length];
             const lowestRate = Math.min(...prod.rates.map(r => r.interestRate));
+
             return (
-              <div key={prod.id} className={`bg-gradient-to-br ${color} rounded-2xl p-5 relative overflow-hidden`}>
-                <div className="absolute right-4 top-4 opacity-10">
-                  <Icon size={56} />
+              <div key={prod.id} className="relative overflow-hidden rounded-2xl p-4"
+                style={{ background: grad, border: "1px solid rgba(255,255,255,0.06)" }}>
+                <div className="absolute right-2 top-2 opacity-[0.07]">
+                  <Wallet size={52} />
                 </div>
                 <div className="relative">
-                  <div className="flex items-center gap-2 mb-3">
-                    <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center">
-                      <Icon size={15} className="text-white" />
-                    </div>
-                    <span className="text-xs font-semibold text-white/70 uppercase tracking-wide">{prod.productType.replace(/_/g, " ")}</span>
-                  </div>
-                  <div className="font-bold text-white text-lg mb-1">{prod.name}</div>
-                  <div className="text-3xl font-black text-white mb-1">
+                  <p className="text-[9px] font-bold uppercase tracking-widest mb-1" style={{ color: accent, opacity: 0.9 }}>
+                    {prod.productType.replace(/_/g, " ")}
+                  </p>
+                  <p className="text-lg font-black text-white mb-0.5">
                     K{prod.maxAmount.toLocaleString()}
-                  </div>
-                  <div className="text-xs text-white/60 mb-4">Up to · from {lowestRate}% flat · {prod.rates.filter(r => r.isActive).length} tiers</div>
-
-                  <div className="flex gap-1.5 flex-wrap mb-4">
-                    {prod.rates.filter(r => r.isActive).map(r => (
-                      <span key={r.id} className="bg-white/15 text-white text-[10px] font-semibold px-2 py-0.5 rounded-full">
-                        {r.displayLabel}: {r.interestRate}%
+                  </p>
+                  <p className="text-[10px] text-slate-400 mb-3">Up to · from {lowestRate}%/mo</p>
+                  <div className="flex flex-wrap gap-1 mb-3">
+                    {prod.rates.filter(r => r.isActive).slice(0, 2).map(r => (
+                      <span key={r.id} className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full"
+                        style={{ background: "rgba(255,255,255,0.1)", color: accent }}>
+                        {r.displayLabel}
                       </span>
                     ))}
                   </div>
-
-                  <div className="grid grid-cols-3 gap-2 mb-4">
-                    {[
-                      { label: "Min Loan",   value: `K${prod.minAmount.toLocaleString()}` },
-                      { label: "Process Fee",value: `${prod.processingFee}%` },
-                      { label: "Grace",      value: `${prod.gracePeriodDays}d` },
-                    ].map(d => (
-                      <div key={d.label} className="bg-white/10 rounded-lg px-2 py-1.5 text-center">
-                        <div className="text-[9px] text-white/50 uppercase tracking-wide">{d.label}</div>
-                        <div className="text-xs font-bold text-white mt-0.5">{d.value}</div>
-                      </div>
-                    ))}
-                  </div>
-
-                  {prod.collateralRequired && (
-                    <div className="flex items-center gap-1.5 text-[10px] text-white/60 mb-3">
-                      <ShieldCheck size={11} className="text-white/40" />
-                      Collateral required · {prod.ltvMode === "product_override" ? `Fixed ${prod.ltvOverrideValue}% LTV` : "LTV by condition (40–70%)"}
-                    </div>
-                  )}
-
                   <Link to="/portal/apply"
-                    className="inline-flex items-center gap-1.5 bg-white/20 hover:bg-white/30 text-white text-xs font-semibold px-4 py-2 rounded-xl transition-all">
-                    Apply Now <ChevronRight size={11} />
+                    className="inline-flex items-center gap-1 text-[10px] font-bold px-3 py-1.5 rounded-xl transition-all hover:opacity-80"
+                    style={{ background: "rgba(255,255,255,0.12)", color: "white" }}>
+                    Apply <ArrowRight size={9} />
                   </Link>
                 </div>
               </div>
@@ -388,107 +521,85 @@ export default function ClientDashboardPage() {
         </div>
       </div>
 
-      {/* Account Summary — shown to active loan holders */}
-      {hasActiveLoan && activeLoanApp && (
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
-          <h3 className="font-semibold text-slate-300 text-sm mb-4 flex items-center gap-2">
-            <Wallet size={14} className="text-indigo-400" /> Account Summary
-          </h3>
-          <div className="space-y-3">
-            {[
-              { label: "Client Since", value: new Date(client.joinedAt).toLocaleDateString("en-GB", { month: "short", year: "numeric" }) },
-              { label: "Total Borrowed", value: `K${activeLoanApp.amountRequested.toLocaleString()}` },
-              { label: "Est. Repayable", value: `K${Math.round(activeLoanApp.amountRequested * 1.04 * termMonths).toLocaleString()}` },
-              { label: "Loan Ref", value: activeLoanApp.reference },
-              { label: "Status", value: activeLoanApp.status, valueClass: "text-emerald-400" },
-            ].map(s => (
-              <div key={s.label} className="flex items-center justify-between text-sm">
-                <span className="text-slate-500">{s.label}</span>
-                <span className={`font-semibold ${(s as { valueClass?: string }).valueClass ?? "text-slate-200"}`}>{s.value}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Recent Transactions — empty state */}
-      {hasActiveLoan && (
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
-          <h3 className="font-semibold text-slate-300 text-sm mb-3 flex items-center gap-2">
-            <TrendingUp size={14} className="text-emerald-400" /> Recent Transactions
-          </h3>
-          <div className="flex items-start gap-3 bg-slate-800/40 border border-slate-700/40 rounded-xl p-4">
-            <Info size={15} className="text-slate-500 mt-0.5 flex-shrink-0" />
-            <p className="text-sm text-slate-500">
-              Payment history will appear here once your loan is disbursed.
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* Tip card for new clients */}
-      {!hasActiveLoan && (
-        <div className="flex items-start gap-3 bg-blue-900/20 border border-blue-800/40 rounded-2xl p-4">
-          <Info size={15} className="text-blue-400 mt-0.5 flex-shrink-0" />
-          <div>
-            <div className="text-sm font-semibold text-blue-300 mb-1">Tips for faster approval</div>
-            <ul className="text-xs text-slate-500 space-y-1">
-              <li>• Upload a clear photo of your NRC (front and back)</li>
-              <li>• Provide your employer details and latest payslip</li>
-              <li>• Applications submitted before 2 PM are reviewed same day</li>
-            </ul>
-          </div>
-        </div>
-      )}
-
-      {/* Loyalty / promo banner */}
-      <div className="relative overflow-hidden bg-gradient-to-r from-amber-900/30 to-orange-900/20 border border-amber-800/30 rounded-2xl p-5">
-        <div className="absolute right-4 top-1/2 -translate-y-1/2 opacity-10 text-8xl">🏆</div>
-        <div className="flex items-center gap-3 relative">
-          <div className="w-10 h-10 rounded-xl bg-amber-500/20 flex items-center justify-center flex-shrink-0">
-            {hasActiveLoan ? <Star size={18} className="text-amber-400" /> : <Gift size={18} className="text-amber-400" />}
-          </div>
-          <div className="flex-1">
-            <div className="font-bold text-amber-300">
-              {hasActiveLoan ? "Loyal Client Benefit" : "First-Time Borrower Offer"}
-            </div>
-            <div className="text-xs text-slate-500 mt-0.5">
-              {hasActiveLoan
-                ? "Repay on time to unlock lower interest rates on your next loan"
-                : "New clients enjoy reduced fees on their first loan. Apply today!"}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Mobile apply CTA */}
-      <div className="sm:hidden space-y-2">
-        <Link to="/portal/apply" className="w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-3.5 rounded-xl text-sm transition-all">
-          <Zap size={15} /> Apply for a New Loan
-        </Link>
-        <a href="tel:+260777158901" className="w-full flex items-center justify-center gap-2 bg-slate-800 text-slate-400 py-3 rounded-xl text-sm border border-slate-700">
-          <Phone size={14} /> +260 777 158 901 — Need help?
-        </a>
-      </div>
-
-      {/* Notifications shortcut */}
-      <Link to="/portal/notifications" className="flex items-center gap-3 bg-slate-900 border border-slate-800 hover:border-slate-700 rounded-2xl p-4 transition-all group">
-        <div className="w-10 h-10 rounded-xl bg-indigo-600/20 flex items-center justify-center relative flex-shrink-0">
+      {/* ── NOTIFICATIONS SHORTCUT ── */}
+      <Link to="/portal/notifications"
+        className="flex items-center gap-4 rounded-2xl px-4 py-4 transition-all hover:border-slate-600 group"
+        style={{ background: "rgba(15,23,42,0.8)", border: "1px solid rgba(30,41,59,1)" }}>
+        <div className="relative w-10 h-10 rounded-xl bg-indigo-600/20 flex items-center justify-center flex-shrink-0">
           <Bell size={16} className="text-indigo-400" />
-          {notifCount > 0 && (
+          {unreadCount > 0 && (
             <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full text-[9px] text-white flex items-center justify-center font-bold">
-              {notifCount > 9 ? "9+" : notifCount}
+              {unreadCount > 9 ? "9+" : unreadCount}
             </span>
           )}
         </div>
         <div className="flex-1">
-          <div className="text-sm font-semibold text-slate-300">Notifications</div>
-          <div className="text-xs text-slate-600">
-            {notifCount > 0 ? `${notifCount} update${notifCount > 1 ? "s" : ""} on your loan application${notifCount > 1 ? "s" : ""}` : "No new notifications"}
+          <p className="text-sm font-semibold text-slate-300">Notifications</p>
+          <p className="text-xs text-slate-600 mt-0.5">
+            {unreadCount > 0 ? `${unreadCount} update${unreadCount > 1 ? "s" : ""} on your account` : "No new notifications"}
+          </p>
+        </div>
+        <ChevronRight size={14} className="text-slate-700 group-hover:text-slate-400 transition-colors" />
+      </Link>
+
+      {/* ── LOYALTY / PROMO BANNER ── */}
+      <div className="relative overflow-hidden rounded-2xl p-5"
+        style={{ background: "linear-gradient(135deg, rgba(120,53,15,0.3), rgba(180,83,9,0.15))", border: "1px solid rgba(245,166,35,0.2)" }}>
+        <div className="absolute right-4 top-1/2 -translate-y-1/2 text-6xl opacity-10 pointer-events-none">★</div>
+        <div className="relative flex items-center gap-4">
+          <div className="w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0"
+            style={{ background: "rgba(245,166,35,0.15)" }}>
+            {hasActiveLoan ? <Star size={18} style={{ color: "#F5A623" }} /> : <Gift size={18} style={{ color: "#F5A623" }} />}
+          </div>
+          <div className="flex-1">
+            <p className="font-bold text-sm" style={{ color: "#F5A623" }}>
+              {hasActiveLoan ? "Loyal Client Benefit" : "First-Time Borrower Offer"}
+            </p>
+            <p className="text-xs text-slate-500 mt-0.5">
+              {hasActiveLoan
+                ? "Repay on time to unlock lower rates and higher limits on your next loan."
+                : "New clients enjoy reduced processing fees on their first loan. Apply today!"}
+            </p>
           </div>
         </div>
-        <ChevronRight size={14} className="text-slate-600 group-hover:text-slate-400" />
-      </Link>
+      </div>
+
+      {/* ── TIPS (new clients) ── */}
+      {!hasActiveLoan && (
+        <div className="rounded-2xl p-4"
+          style={{ background: "rgba(15,23,42,0.6)", border: "1px solid rgba(30,41,59,1)" }}>
+          <div className="flex items-center gap-2 mb-3">
+            <Sparkles size={13} className="text-indigo-400" />
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-wide">Tips for faster approval</span>
+          </div>
+          <ul className="space-y-2">
+            {[
+              "Upload a clear photo of your NRC (front and back)",
+              "Provide your employer details and latest payslip",
+              "Applications submitted before 2 PM are reviewed same day",
+            ].map((tip, i) => (
+              <li key={i} className="flex items-start gap-2 text-xs text-slate-500">
+                <span className="mt-0.5 flex-shrink-0 w-4 h-4 rounded-full bg-indigo-900/50 text-indigo-400 flex items-center justify-center text-[9px] font-bold">{i + 1}</span>
+                {tip}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* ── MOBILE CTA ── */}
+      <div className="sm:hidden space-y-2.5">
+        <Link to="/portal/apply"
+          className="w-full flex items-center justify-center gap-2 font-bold py-4 rounded-2xl text-sm shadow-lg transition-all hover:opacity-90"
+          style={{ background: "#F5A623", color: "#0B1F3A" }}>
+          <Zap size={15} /> Apply for a New Loan
+        </Link>
+        <a href="tel:+260777158901"
+          className="w-full flex items-center justify-center gap-2 text-slate-400 py-3.5 rounded-2xl text-sm font-semibold border transition-all"
+          style={{ background: "rgba(15,23,42,0.8)", border: "1px solid rgba(30,41,59,1)" }}>
+          <Phone size={14} /> +260 777 158 901 — Need help?
+        </a>
+      </div>
     </div>
   );
 }
