@@ -3,20 +3,8 @@ import { Gift, Users, Trophy, Copy, CheckCircle, TrendingUp, Star } from "lucide
 
 const K = (n: number) => `K${n.toLocaleString("en-ZM", { minimumFractionDigits: 2 })}`;
 
-const topReferrers = [
-  { rank: 1, name: "Chanda Mwale", clientNo: "PHX-C-00042", referrals: 8, earned: 800, tier: "Gold" },
-  { rank: 2, name: "Grace Lungu", clientNo: "PHX-C-00031", referrals: 5, earned: 500, tier: "Silver" },
-  { rank: 3, name: "Mary Phiri", clientNo: "PHX-C-00019", referrals: 4, earned: 400, tier: "Silver" },
-  { rank: 4, name: "Peter Banda", clientNo: "PHX-C-00038", referrals: 2, earned: 200, tier: "Bronze" },
-  { rank: 5, name: "James Mutale", clientNo: "PHX-C-00029", referrals: 1, earned: 100, tier: "Bronze" },
-];
-
-const recentReferrals = [
-  { id: "r1", referrer: "Chanda Mwale", referred: "Alice Banda", date: "2026-06-17", status: "ACTIVE", reward: 100 },
-  { id: "r2", referrer: "Grace Lungu", referred: "Bob Tembo", date: "2026-06-16", status: "PENDING", reward: 100 },
-  { id: "r3", referrer: "Chanda Mwale", referred: "Carol Phiri", date: "2026-06-15", status: "ACTIVE", reward: 100 },
-  { id: "r4", referrer: "Mary Phiri", referred: "David Mwale", date: "2026-06-14", status: "ACTIVE", reward: 100 },
-];
+const topReferrers: { rank: number; name: string; clientNo: string; referrals: number; earned: number; tier: string }[] = [];
+const recentReferrals: { id: string; referrer: string; referred: string; date: string; status: string; reward: number }[] = [];
 
 const TIER_COLORS: Record<string, string> = {
   Gold: "text-yellow-700 bg-yellow-100 border-yellow-200",

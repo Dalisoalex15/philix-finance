@@ -9,13 +9,7 @@ interface Payment {
   receivedAt: string; network: string;
 }
 
-const incomingPayments: Payment[] = [
-  { id: "mm1", ref: "MTN-2026061700142", phone: "+260 977 112 233", amount: 850, matched: true, loanRef: "PHX-L-2026-0042", clientName: "Chanda Mwale", receivedAt: "2026-06-17T08:14:00Z", network: "MTN" },
-  { id: "mm2", ref: "AIR-2026061700089", phone: "+260 955 445 566", amount: 1200, matched: true, loanRef: "PHX-L-2026-0038", clientName: "Peter Banda", receivedAt: "2026-06-17T07:30:00Z", network: "Airtel" },
-  { id: "mm3", ref: "MTN-2026061600301", phone: "+260 966 778 899", amount: 500, matched: false, loanRef: null, clientName: null, receivedAt: "2026-06-16T18:45:00Z", network: "MTN" },
-  { id: "mm4", ref: "AIR-2026061600214", phone: "+260 955 334 455", amount: 2000, matched: true, loanRef: "PHX-L-2026-0031", clientName: "Grace Lungu", receivedAt: "2026-06-16T14:45:00Z", network: "Airtel" },
-  { id: "mm5", ref: "ZTL-2026061600155", phone: "+260 950 012 345", amount: 300, matched: false, loanRef: null, clientName: null, receivedAt: "2026-06-16T11:20:00Z", network: "Zamtel" },
-];
+const incomingPayments: Payment[] = [];
 
 const NETWORK_COLORS: Record<string, string> = {
   MTN: "bg-yellow-100 text-yellow-700 border-yellow-200",

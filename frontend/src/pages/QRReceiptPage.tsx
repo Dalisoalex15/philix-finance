@@ -4,11 +4,7 @@ import jsPDF from "jspdf";
 
 const K = (n: number) => `K${n.toLocaleString("en-ZM", { minimumFractionDigits: 2 })}`;
 
-const receipts = [
-  { id: "rcpt-001", paymentRef: "PAY-20260617-001", loanRef: "PHX-L-2026-0042", client: "Chanda Mwale", amount: 850, method: "Cash", date: "17 Jun 2026 08:14", officer: "Mary Chirwa", verified: true },
-  { id: "rcpt-002", paymentRef: "PAY-20260617-002", loanRef: "PHX-L-2026-0038", client: "Peter Banda", amount: 1200, method: "MTN Money", date: "17 Jun 2026 07:30", officer: "James Mutale", verified: true },
-  { id: "rcpt-003", paymentRef: "PAY-20260616-007", loanRef: "PHX-L-2026-0031", client: "Grace Lungu", amount: 2000, method: "Airtel Money", date: "16 Jun 2026 14:45", officer: "Mary Chirwa", verified: true },
-];
+const receipts: { id: string; paymentRef: string; loanRef: string; client: string; amount: number; method: string; date: string; officer: string; verified: boolean }[] = [];
 
 function QRCodeImg({ value, size = 120 }: { value: string; size?: number }) {
   const src = `https://api.qrserver.com/v1/create-qrcode/?size=${size}x${size}&data=${encodeURIComponent(value)}&margin=4&bgcolor=ffffff&color=0B1F3A`;
@@ -20,7 +16,7 @@ function QRCodeImg({ value, size = 120 }: { value: string; size?: number }) {
 }
 
 export default function QRReceiptPage() {
-  const [selected, setSelected] = useState(receipts[0]);
+  const [selected, setSelected] = useState(receipts[0] ?? null);
   const [search, setSearch] = useState("");
   const [verifyRef, setVerifyRef] = useState("");
   const [verifyResult, setVerifyResult] = useState<typeof receipts[0] | null | "notfound">(null);

@@ -22,36 +22,7 @@ interface Group {
   members: GroupMember[];
 }
 
-const groups: Group[] = [
-  {
-    id: "g1", name: "UNZA Women's Savings Group", loanRef: "PHX-GRP-2026-001",
-    totalAmount: 10000, totalRepayable: 12000, status: "ACTIVE", dueDate: "2026-07-17", createdAt: "2026-06-17",
-    members: [
-      { name: "Chanda Mwale", clientNo: "PHX-C-00042", contribution: 2500, paid: true },
-      { name: "Grace Lungu", clientNo: "PHX-C-00031", contribution: 2500, paid: true },
-      { name: "Mary Phiri", clientNo: "PHX-C-00019", contribution: 2500, paid: false },
-      { name: "Alice Banda", clientNo: "PHX-C-00056", contribution: 2500, paid: false },
-    ],
-  },
-  {
-    id: "g2", name: "Mtendere Market Traders", loanRef: "PHX-GRP-2026-002",
-    totalAmount: 15000, totalRepayable: 18000, status: "ACTIVE", dueDate: "2026-07-01", createdAt: "2026-06-01",
-    members: [
-      { name: "Peter Banda", clientNo: "PHX-C-00038", contribution: 5000, paid: true },
-      { name: "James Mutale", clientNo: "PHX-C-00029", contribution: 5000, paid: false },
-      { name: "John Tembo", clientNo: "PHX-C-00067", contribution: 5000, paid: false },
-    ],
-  },
-  {
-    id: "g3", name: "UNILUS Engineering Students", loanRef: "PHX-GRP-2025-015",
-    totalAmount: 6000, totalRepayable: 7200, status: "CLOSED", dueDate: "2026-01-15", createdAt: "2025-12-15",
-    members: [
-      { name: "David Mwale", clientNo: "PHX-C-00012", contribution: 2000, paid: true },
-      { name: "Carol Phiri", clientNo: "PHX-C-00021", contribution: 2000, paid: true },
-      { name: "Bob Tembo", clientNo: "PHX-C-00033", contribution: 2000, paid: true },
-    ],
-  },
-];
+const groups: Group[] = [];
 
 const STATUS_STYLES: Record<string, string> = {
   ACTIVE: "bg-emerald-100 text-emerald-700 border-emerald-200",
@@ -61,13 +32,13 @@ const STATUS_STYLES: Record<string, string> = {
 };
 
 export default function GroupLendingPage() {
-  const [selected, setSelected] = useState<Group>(groups[0]);
+  const [selected, setSelected] = useState<Group | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [showNew, setShowNew] = useState(false);
   const [newGroupName, setNewGroupName] = useState("");
 
-  const paidMembers = selected.members.filter(m => m.paid).length;
-  const paidAmount = selected.members.filter(m => m.paid).reduce((s, m) => s + m.contribution, 0);
+  const paidMembers = selected ? selected.members.filter(m => m.paid).length : 0;
+  const paidAmount  = selected ? selected.members.filter(m => m.paid).reduce((s, m) => s + m.contribution, 0) : 0;
 
   return (
     <div className="space-y-6">
@@ -133,10 +104,15 @@ export default function GroupLendingPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="space-y-3">
+          {groups.length === 0 && (
+            <div className="philix-card p-10 text-center text-slate-500 text-sm">
+              No group loans yet. Click <strong>+ New Group</strong> to create one.
+            </div>
+          )}
           {groups.map(g => (
             <div key={g.id}>
               <button onClick={() => setExpanded(expanded === g.id ? null : g.id)}
-                className={`w-full text-left philix-card p-4 transition-all hover:border-indigo-700 ${selected.id === g.id ? "border border-indigo-600" : ""}`}
+                className={`w-full text-left philix-card p-4 transition-all hover:border-indigo-700 ${selected?.id === g.id ? "border border-indigo-600" : ""}`}
                 onFocus={() => setSelected(g)}>
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-full bg-indigo-600/20 flex items-center justify-center flex-shrink-0">
@@ -174,6 +150,7 @@ export default function GroupLendingPage() {
           ))}
         </div>
 
+        {selected ? (
         <div className="philix-card p-5 space-y-4">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-indigo-600/20 flex items-center justify-center"><Users size={18} className="text-indigo-700" /></div>
@@ -228,6 +205,11 @@ export default function GroupLendingPage() {
             ))}
           </div>
         </div>
+        ) : (
+          <div className="philix-card p-10 text-center text-slate-500 text-sm">
+            Select a group to view details
+          </div>
+        )}
       </div>
     </div>
   );
