@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { useClientAuthStore } from "../../store/clientAuth";
 import {
@@ -53,82 +53,6 @@ function scoreMeta(s: number) {
   return              { label: "Building",    color: "#ef4444" };
 }
 
-// ── Score arc gauge ───────────────────────────────────────────────────────
-function ScoreGauge({ score }: { score: number }) {
-  const [shown, setShown] = useState(300);
-  const ran = useRef(false);
-  useEffect(() => {
-    if (ran.current) return;
-    ran.current = true;
-    const delta = score - 300;
-    const steps = 60;
-    let i = 0;
-    const t = setInterval(() => {
-      i++;
-      setShown(Math.round(300 + (delta * i) / steps));
-      if (i >= steps) clearInterval(t);
-    }, 16);
-    return () => clearInterval(t);
-  }, [score]);
-
-  const meta = scoreMeta(shown);
-  const pct = (shown - 300) / 550;
-  const R = 72, cx = 90, cy = 90;
-  const arcLen = Math.PI * R;
-  const filled = pct * arcLen;
-  const a = Math.PI - pct * Math.PI;
-  const nx = cx + (R - 14) * Math.cos(a);
-  const ny = cy - (R - 14) * Math.sin(a);
-
-  return (
-    <div className="flex items-center gap-5">
-      <div className="flex-shrink-0">
-        <svg viewBox="0 0 180 100" width={176} height={100}>
-          <defs>
-            <linearGradient id="arc-g" x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%"   stopColor="#ef4444" />
-              <stop offset="33%"  stopColor="#f97316" />
-              <stop offset="60%"  stopColor="#F5A623" />
-              <stop offset="85%"  stopColor="#34d399" />
-              <stop offset="100%" stopColor="#10b981" />
-            </linearGradient>
-          </defs>
-          <path d={`M ${cx-R} ${cy} A ${R} ${R} 0 0 1 ${cx+R} ${cy}`}
-            fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="10" strokeLinecap="round"/>
-          {filled > 0 && (
-            <path d={`M ${cx-R} ${cy} A ${R} ${R} 0 0 1 ${cx+R} ${cy}`}
-              fill="none" stroke="url(#arc-g)" strokeWidth="10" strokeLinecap="round"
-              strokeDasharray={`${filled} ${arcLen}`}/>
-          )}
-          <line x1={cx} y1={cy} x2={nx} y2={ny}
-            stroke={meta.color} strokeWidth="2.5" strokeLinecap="round"/>
-          <circle cx={cx} cy={cy} r="5" fill={meta.color}/>
-          <circle cx={cx} cy={cy} r="2.5" fill="#0a1628"/>
-          <text x={cx-R+2} y={cy+14} fill="rgba(100,116,139,0.5)" fontSize="7" fontWeight="600">300</text>
-          <text x={cx+R-14} y={cy+14} fill="rgba(100,116,139,0.5)" fontSize="7" fontWeight="600">850</text>
-        </svg>
-      </div>
-      <div>
-        <p className="text-4xl font-black tracking-tight" style={{ color: meta.color, lineHeight: 1 }}>{shown}</p>
-        <p className="text-sm font-bold mt-1" style={{ color: meta.color }}>{meta.label}</p>
-        <p className="text-[10px] text-slate-600 mt-0.5 uppercase tracking-wide">Philix Credit Score</p>
-        <div className="flex flex-wrap gap-1 mt-2.5">
-          {(["Poor","Fair","Good","Excellent"] as const).map((t, i) => {
-            const thresholds = [0, 550, 650, 720];
-            const isActive = shown >= thresholds[i] && (i === 3 ? true : shown < thresholds[i+1]);
-            return (
-              <span key={t}
-                className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${isActive ? "text-white" : "text-slate-700"}`}
-                style={isActive ? { background: meta.color + "20", border: `1px solid ${meta.color}40` } : {}}>
-                {t}
-              </span>
-            );
-          })}
-        </div>
-      </div>
-    </div>
-  );
-}
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 function Card({ children, className = "" }: { children: React.ReactNode; className?: string }) {
@@ -181,6 +105,7 @@ export default function ClientDashboardPage() {
   const hour      = new Date().getHours();
   const greeting  = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
   const score     = calcScore(apps, kycOk, client.joinedAt ?? new Date().toISOString());
+  const meta      = scoreMeta(score);
 
   const active    = apps.find(a => a.status === "DISBURSED" || a.status === "APPROVED");
   const pending   = apps.filter(a => a.status === "SUBMITTED" || a.status === "UNDER_REVIEW");
@@ -252,9 +177,32 @@ export default function ClientDashboardPage() {
       )}
 
       {/* ── CREDIT SCORE ───────────────────────────────────────────────── */}
-      <Card className="px-5 pt-5 pb-4">
-        <ScoreGauge score={score}/>
-        <div className="h-px bg-white/[0.05] my-4"/>
+      <Card className="px-5 py-4">
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-600">Credit Score</p>
+          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
+            style={{ background: meta.color + "18", color: meta.color, border: `1px solid ${meta.color}35` }}>
+            {meta.label}
+          </span>
+        </div>
+        <div className="flex items-end gap-3 mb-4">
+          <p className="text-5xl font-black tracking-tight" style={{ color: meta.color, lineHeight: 1 }}>{score}</p>
+          <div className="pb-1">
+            <p className="text-xs text-slate-600">out of 850</p>
+            <p className="text-[10px] text-slate-700 mt-0.5">Philix Credit Score</p>
+          </div>
+        </div>
+        {/* Score bar */}
+        <div className="h-2 rounded-full overflow-hidden mb-1" style={{ background: "rgba(255,255,255,0.05)" }}>
+          <div className="h-full rounded-full" style={{
+            width: `${((score - 300) / 550) * 100}%`,
+            background: `linear-gradient(90deg, #ef4444, #f97316, #F5A623, #34d399, #10b981)`,
+          }}/>
+        </div>
+        <div className="flex justify-between text-[9px] text-slate-700 mb-4">
+          <span>300</span><span>Poor</span><span>Fair</span><span>Good</span><span>850</span>
+        </div>
+        <div className="h-px bg-white/[0.05] mb-4"/>
         <div className="grid grid-cols-3 divide-x divide-white/[0.05]">
           <div className="text-center pr-3">
             <p className={`text-xs font-bold ${kycOk ? "text-emerald-400" : "text-amber-400"}`}>
