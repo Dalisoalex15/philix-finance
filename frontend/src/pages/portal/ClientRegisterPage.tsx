@@ -21,6 +21,7 @@ export default function ClientRegisterPage() {
     nrcNumber: "", nrcFront: null as File | null, nrcBack: null as File | null, selfie: null as File | null,
     occupation: "", employer: "", monthlyIncome: "",
     password: "", confirmPassword: "", agreeTerms: false,
+    referralCode: "",
   });
 
   const set = (key: string, value: string | boolean | File | null) => {
@@ -75,6 +76,7 @@ export default function ClientRegisterPage() {
           occupation: form.occupation || undefined,
           employer: form.employer || undefined,
           monthlyIncome: form.monthlyIncome ? Number(form.monthlyIncome) : undefined,
+          referralCode: form.referralCode.trim().toUpperCase() || undefined,
         });
         setDone(true);
       } catch (err: unknown) {
@@ -324,6 +326,12 @@ export default function ClientRegisterPage() {
                   </label>
                 </div>
                 {errors.agreeTerms && <p className="text-red-400 text-xs">{errors.agreeTerms}</p>}
+                <div>
+                  <label className="text-xs text-slate-400 mb-1 block">Referral Code <span className="text-slate-600">(optional)</span></label>
+                  <input className="w-full bg-slate-800 border border-slate-700 text-slate-100 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 placeholder:text-slate-600 font-mono uppercase tracking-widest"
+                    placeholder="PHX-XXXXX" value={form.referralCode} onChange={e => set("referralCode", e.target.value.toUpperCase())} maxLength={12} />
+                  <p className="text-xs text-slate-600 mt-1">If a friend referred you, enter their code to unlock benefits for both of you</p>
+                </div>
               </div>
             )}
 

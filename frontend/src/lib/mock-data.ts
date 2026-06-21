@@ -7,6 +7,10 @@
 export const formatKwacha = (amount: number) =>
   `K${amount.toLocaleString("en-ZM", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 
+// Full currency label for headings and labels (e.g. "K 5,000 ZMW")
+export const formatKwachaFull = (amount: number) =>
+  `K${amount.toLocaleString("en-ZM", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ZMW`;
+
 export const formatDate = (dateString: string) =>
   new Date(dateString).toLocaleDateString("en-ZM", { day: "2-digit", month: "short", year: "numeric" });
 
@@ -256,5 +260,29 @@ export const mockLoanProducts: LoanProduct[] = [
     ],
     auditLog: [{ action: "created", field: "product", oldValue: "", newValue: "Premium Client Loan", changedBy: "Daliso (CEO)", changedAt: "2024-01-15T09:00:00Z" }],
     createdAt: "2024-01-15", updatedAt: "2026-06-18",
+  },
+  {
+    id: "prod-007", slug: "trusted-client-express-loan", name: "Trusted Client Express Loan",
+    productType: "TRUSTED",
+    targetBorrower: "Existing clients with 2+ repaid loans, no defaults, and verified income — NO collateral required",
+    isActive: true,
+    description: "Trust Earned. Finance Simplified. No collateral needed — approval based on your repayment history, trust score, and income. Available exclusively to Trusted Client status holders.",
+    interestType: "flat", minAmount: 1000, maxAmount: 25000,
+    processingFeeType: "percentage", processingFee: 0, penaltyRate: 5, penaltyPeriod: "per_week", gracePeriodDays: 7,
+    collateralRequired: false,
+    ltvMode: "condition_based", ltvOverrideValue: null,
+    eligibleCampuses: [], requiredDocuments: ["NRC", "Income Proof", "Guarantor Details"],
+    autoRenewal: false, displayOrder: 7,
+    eligibilityRules: { minRepaidLoans: 2, maxDefaultCount: 0, minTrustScore: 60, isTrustedClientRequired: true },
+    rates: [
+      { id: "r007-1", durationValue: 4,  durationUnit: "weeks", interestRate: 8,  displayLabel: "4 Weeks",  isActive: true, displayOrder: 1 },
+      { id: "r007-2", durationValue: 8,  durationUnit: "weeks", interestRate: 15, displayLabel: "8 Weeks",  isActive: true, displayOrder: 2 },
+      { id: "r007-3", durationValue: 12, durationUnit: "weeks", interestRate: 22, displayLabel: "12 Weeks", isActive: true, displayOrder: 3 },
+      { id: "r007-4", durationValue: 16, durationUnit: "weeks", interestRate: 28, displayLabel: "16 Weeks", isActive: true, displayOrder: 4 },
+      { id: "r007-5", durationValue: 20, durationUnit: "weeks", interestRate: 33, displayLabel: "20 Weeks", isActive: true, displayOrder: 5 },
+      { id: "r007-6", durationValue: 24, durationUnit: "weeks", interestRate: 38, displayLabel: "24 Weeks", isActive: true, displayOrder: 6 },
+    ],
+    auditLog: [{ action: "created", field: "product", oldValue: "", newValue: "Trusted Client Express Loan", changedBy: "Daliso (CEO)", changedAt: "2026-06-21T09:00:00Z" }],
+    createdAt: "2026-06-21", updatedAt: "2026-06-21",
   },
 ];

@@ -12,7 +12,7 @@ import {
   assessCollateral, K, SCORE_LABEL, SCORE_COLOR, COVERAGE_COLOR, COVERAGE_LABEL, REPOSSESSION_COLOR,
 } from "../../lib/collateralEngine";
 
-const ACTIVE_PRODUCTS = mockLoanProducts.filter(p => p.isActive);
+const ALL_ACTIVE_PRODUCTS = mockLoanProducts.filter(p => p.isActive);
 
 const PURPOSES = [
   "Business Working Capital", "Stock Purchase", "Equipment Purchase",
@@ -41,7 +41,8 @@ const COLLATERAL_TYPES = [
   "Other Electronic Device", "Other Household Asset", "Other",
 ];
 
-const STEPS = ["Product", "Loan Details", "Personal & Employment", "Collateral", "Guarantor & Refs", "Review"];
+const ALL_STEPS = ["Product", "Loan Details", "Personal & Employment", "Collateral", "Guarantor & Refs", "Review"];
+const TRUSTED_STEPS = ["Product", "Loan Details", "Personal & Employment", "Guarantor & Refs", "Review"];
 
 // ── Input helpers ─────────────────────────────────────────────────────────────
 const inputCls = "w-full bg-slate-800 border border-slate-700 text-slate-100 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 placeholder:text-slate-600";
@@ -61,6 +62,12 @@ export default function LoanApplicationPage() {
   const navigate = useNavigate();
   const client = useClientAuthStore(s => s.client)!;
   const submitApplication = useLoanApplicationStore(s => s.submit);
+
+  // Trusted client gets access to prod-007
+  const ACTIVE_PRODUCTS = ALL_ACTIVE_PRODUCTS.filter(p => {
+    if (p.id === "prod-007") return client.isTrustedClient;
+    return true;
+  });
   const [step, setStep] = useState(0);
   const [done, setDone] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -105,6 +112,8 @@ export default function LoanApplicationPage() {
   const loanAmount = Number(form.amount) || 0;
   const totalRepayable = selectedRate ? loanAmount * (1 + selectedRate.interestRate / 100) : 0;
   const weeklyPayment = selectedRate ? totalRepayable / selectedRate.durationValue : 0;
+  const isTrustedProduct = selectedProduct?.id === "prod-007";
+  const STEPS = isTrustedProduct ? TRUSTED_STEPS : ALL_STEPS;
 
   const handleProductSelect = (productId: string) => {
     const p = ACTIVE_PRODUCTS.find(x => x.id === productId);
@@ -177,17 +186,22 @@ export default function LoanApplicationPage() {
       if (!form.employmentType) e.employmentType = "Select your employment type";
       if (!form.monthlyIncome) e.monthlyIncome = "Monthly income is required";
     }
-    if (step === 3) {
+    // Collateral step only exists in non-trusted flow (step 3 of ALL_STEPS)
+    if (!isTrustedProduct && step === 3) {
       if (!form.collateralType) e.collateralType = "Select a collateral type";
       if (!form.collateralDescription) e.collateralDescription = "Describe the item";
       if (!form.collateralValue) e.collateralValue = "Enter the estimated market value";
       if (!form.collateralCondition) e.collateralCondition = "Select item condition";
     }
-    if (step === 4) {
-      if (!form.ref1Name) e.ref1Name = "At least one reference is required";
-      if (!form.ref1Phone) e.ref1Phone = "Reference phone number is required";
+    // Guarantor step: step 4 in normal flow, step 3 in trusted flow
+    const guarantorStep = isTrustedProduct ? 3 : 4;
+    if (step === guarantorStep) {
+      if (!form.ref1Name) e.ref1Name = "At least one guarantor/reference name is required";
+      if (!form.ref1Phone) e.ref1Phone = "Guarantor/reference phone number is required";
     }
-    if (step === 5) {
+    // Review (final) step
+    const reviewStep = isTrustedProduct ? 4 : 5;
+    if (step === reviewStep) {
       if (!form.agreeLoan) e.agreeLoan = "You must agree to the loan terms";
       if (!form.agreeAccurate) e.agreeAccurate = "You must confirm the information is accurate";
     }
@@ -392,6 +406,15 @@ export default function LoanApplicationPage() {
         {step === 0 && (
           <div className="space-y-3">
             <h3 className="font-bold text-white mb-4">Choose Your Loan Product</h3>
+            {client.isTrustedClient && (
+              <div className="bg-emerald-900/20 border border-emerald-700/40 rounded-xl p-3 text-xs text-emerald-300 flex items-start gap-2 mb-2">
+                <span className="text-lg leading-none">⭐</span>
+                <div>
+                  <div className="font-bold text-emerald-300 mb-0.5">You are a Trusted Client</div>
+                  <div className="text-emerald-400/80">You have exclusive access to the <strong>Trusted Client Express Loan</strong> — no collateral required. Your trust score: <strong>{client.trustScore ?? "—"}/100</strong>.</div>
+                </div>
+              </div>
+            )}
             {ACTIVE_PRODUCTS.map(p => {
               const activeRates = p.rates.filter(r => r.isActive);
               const isSelected = form.productId === p.id;
@@ -405,6 +428,7 @@ export default function LoanApplicationPage() {
                         <span className="font-semibold text-slate-200 text-sm">{p.name}</span>
                         {p.productType === "PREMIUM" && <span className="text-[10px] bg-amber-900/60 text-amber-300 px-2 py-0.5 rounded-full border border-amber-800/50">Premium</span>}
                         {p.productType === "LOYALTY" && <span className="text-[10px] bg-purple-900/60 text-purple-300 px-2 py-0.5 rounded-full border border-purple-800/50">Loyalty</span>}
+                        {p.productType === "TRUSTED" && <span className="text-[10px] bg-emerald-900/60 text-emerald-300 px-2 py-0.5 rounded-full border border-emerald-800/50">⭐ No Collateral</span>}
                       </div>
                       <p className="text-xs text-slate-500 mb-1.5">{p.description}</p>
                       <div className="flex flex-wrap gap-2 text-xs">
@@ -433,7 +457,7 @@ export default function LoanApplicationPage() {
             <div className="bg-indigo-900/20 border border-indigo-800/30 rounded-xl p-3 text-xs text-slate-400">
               <span className="text-indigo-400 font-semibold">{selectedProduct.name}</span> · {K(selectedProduct.minAmount)} – {K(selectedProduct.maxAmount)}
             </div>
-            <Field label="Loan Amount (K) *" error={errors.amount}>
+            <Field label="Loan Amount (ZMW) *" error={errors.amount}>
               <input type="number" className={inputCls} placeholder={`Min ${K(selectedProduct.minAmount)}`}
                 value={form.amount} onChange={e => set("amount", e.target.value)} />
               <div className="flex justify-between text-[10px] text-slate-600 mt-1">
@@ -563,15 +587,15 @@ export default function LoanApplicationPage() {
             <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">Income Details</div>
 
             <div className="grid grid-cols-2 gap-3">
-              <Field label="Monthly Gross Income (K) *" error={errors.monthlyIncome}>
+              <Field label="Monthly Gross Income (ZMW) *" error={errors.monthlyIncome}>
                 <input type="number" className={inputCls} placeholder="5000"
                   value={form.monthlyIncome} onChange={e => set("monthlyIncome", e.target.value)} />
               </Field>
-              <Field label="Net Salary Available (K)">
+              <Field label="Net Salary Available (ZMW)">
                 <input type="number" className={inputCls} placeholder="After all deductions"
                   value={form.netSalaryAvailable} onChange={e => set("netSalaryAvailable", e.target.value)} />
               </Field>
-              <Field label="Existing Loan Deductions (K)">
+              <Field label="Existing Loan Deductions (ZMW)">
                 <input type="number" className={inputCls} placeholder="0"
                   value={form.existingLoanDeductions} onChange={e => set("existingLoanDeductions", e.target.value)} />
               </Field>
@@ -597,8 +621,8 @@ export default function LoanApplicationPage() {
           </div>
         )}
 
-        {/* ── Step 3: Collateral ── */}
-        {step === 3 && (
+        {/* ── Step 3: Collateral (skipped for trusted products) ── */}
+        {!isTrustedProduct && step === 3 && (
           <div className="space-y-4">
             <h3 className="font-bold text-white mb-1">Collateral Information</h3>
             <div className="bg-amber-900/20 border border-amber-800/40 rounded-xl p-3 text-xs text-amber-300 flex items-start gap-2">
@@ -638,7 +662,7 @@ export default function LoanApplicationPage() {
                 <input className={inputCls} placeholder="IMEI, chassis, title no..."
                   value={form.collateralSerial} onChange={e => set("collateralSerial", e.target.value)} />
               </Field>
-              <Field label="Your Declared Market Value (K) *" error={errors.collateralValue}>
+              <Field label="Your Declared Market Value (ZMW) *" error={errors.collateralValue}>
                 <input type="number" className={inputCls} placeholder="Current market price"
                   value={form.collateralValue} onChange={e => set("collateralValue", e.target.value)} />
               </Field>
@@ -743,11 +767,18 @@ export default function LoanApplicationPage() {
           </div>
         )}
 
-        {/* ── Step 4: Guarantor & References ── */}
-        {step === 4 && (
+        {/* ── Step 4: Guarantor & References (step 3 for trusted product) ── */}
+        {(isTrustedProduct ? step === 3 : step === 4) && (
           <div className="space-y-4">
             <h3 className="font-bold text-white mb-1">Guarantor & References</h3>
-            <p className="text-xs text-slate-500">A guarantor is someone who agrees to repay if you cannot. References vouch for your character.</p>
+            {isTrustedProduct ? (
+              <div className="bg-emerald-900/20 border border-emerald-700/40 rounded-xl p-3 text-xs text-emerald-300">
+                <div className="font-bold mb-1">⭐ Trusted Client Express Loan — No Collateral Required</div>
+                <p className="text-emerald-400/80">Instead of collateral, you need one working guarantor OR two reputable references. Your guarantor must be employed and willing to sign in person.</p>
+              </div>
+            ) : (
+              <p className="text-xs text-slate-500">A guarantor is someone who agrees to repay if you cannot. References vouch for your character.</p>
+            )}
 
             <div className="h-px bg-slate-800" />
             <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">Guarantor (recommended)</div>
@@ -805,8 +836,8 @@ export default function LoanApplicationPage() {
           </div>
         )}
 
-        {/* ── Step 5: Review + Risk Assessment ── */}
-        {step === 5 && (
+        {/* ── Step 5: Review + Risk Assessment (step 4 for trusted product) ── */}
+        {(isTrustedProduct ? step === 4 : step === 5) && (
           <div className="space-y-5">
             <h3 className="font-bold text-white mb-1">Review & Risk Assessment</h3>
 
@@ -978,7 +1009,7 @@ export default function LoanApplicationPage() {
             </button>
           )}
         </div>
-        {step === 3 && (
+        {!isTrustedProduct && step === 3 && (
           <button onClick={() => setStep(4)} className="w-full mt-2 text-sm text-slate-500 hover:text-slate-400 py-1">
             Skip — I'll provide collateral later
           </button>

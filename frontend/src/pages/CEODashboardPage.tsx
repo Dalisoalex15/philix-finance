@@ -251,7 +251,7 @@ export default function CEODashboardPage() {
               {formatKwacha(portalSummary.totalDisbursedAmount)}
             </div>
             <div className="text-xs font-semibold text-navy-600 mt-0.5">Total Disbursed</div>
-            <div className="text-xs text-navy-500">Principal paid out</div>
+            <div className="text-xs text-navy-500">Zambian Kwacha (ZMW)</div>
           </div>
         </div>
         <div className="philix-card p-5 flex items-center gap-4">
@@ -263,7 +263,7 @@ export default function CEODashboardPage() {
               {formatKwacha(portalSummary.totalInterestEarned)}
             </div>
             <div className="text-xs font-semibold text-navy-600 mt-0.5">Interest Earned</div>
-            <div className="text-xs text-navy-500">Revenue from loans</div>
+            <div className="text-xs text-navy-500">Zambian Kwacha (ZMW)</div>
           </div>
         </div>
         <div className="philix-card p-5 flex items-center gap-4">
@@ -275,7 +275,7 @@ export default function CEODashboardPage() {
               {formatKwacha(portalSummary.totalRepayable)}
             </div>
             <div className="text-xs font-semibold text-navy-600 mt-0.5">Total Repayable</div>
-            <div className="text-xs text-navy-500">Principal + interest</div>
+            <div className="text-xs text-navy-500">Zambian Kwacha (ZMW)</div>
           </div>
         </div>
         <div className="philix-card p-5 flex items-center gap-4">
@@ -287,7 +287,7 @@ export default function CEODashboardPage() {
               {formatKwacha(portalSummary.totalLoanedOut)}
             </div>
             <div className="text-xs font-semibold text-navy-600 mt-0.5">Active Book</div>
-            <div className="text-xs text-navy-500">Approved + disbursed</div>
+            <div className="text-xs text-navy-500">Zambian Kwacha (ZMW)</div>
           </div>
         </div>
       </div>

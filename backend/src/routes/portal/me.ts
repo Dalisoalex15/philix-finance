@@ -59,4 +59,43 @@ router.post("/change-password", wrap(async (req: Request, res: Response) => {
   res.json({ message: "Password updated" });
 }));
 
+// GET /api/portal/me/referral — referral programme stats
+router.get("/referral", wrap(async (req: Request, res: Response) => {
+  const id = (req as Request & { portalAccountId: string }).portalAccountId;
+  const account = await prisma.clientPortalAccount.findUnique({
+    where: { id },
+    select: { clientNumber: true, referredByCode: true },
+  });
+  if (!account) throw new AppError("Account not found", 404);
+
+  // Derive referral code from client number (same formula as frontend)
+  const suffix = account.clientNumber.replace(/\D/g, "").slice(-5);
+  const myCode = `PHX-${suffix || account.clientNumber.slice(-5).toUpperCase()}`;
+
+  // Count how many accounts used this code
+  const referralCount = await prisma.clientPortalAccount.count({
+    where: { referredByCode: myCode },
+  });
+
+  // Fetch brief info on referred accounts (name + join date only)
+  const referred = await prisma.clientPortalAccount.findMany({
+    where: { referredByCode: myCode },
+    select: { firstName: true, lastName: true, createdAt: true, status: true },
+    orderBy: { createdAt: "desc" },
+    take: 20,
+  });
+
+  res.json({
+    myCode,
+    referralCount,
+    wasReferred: !!account.referredByCode,
+    referredByCode: account.referredByCode,
+    referred: referred.map(r => ({
+      name: `${r.firstName} ${r.lastName[0]}.`,
+      joinedAt: r.createdAt,
+      status: r.status,
+    })),
+  });
+}));
+
 export default router;

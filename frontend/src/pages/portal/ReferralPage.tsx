@@ -1,6 +1,14 @@
-import { useState } from "react";
-import { Copy, Check, Share2, Gift, Users, TrendingDown, MessageCircle, ArrowRight } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import { Copy, Check, Share2, Gift, Users, MessageCircle, ArrowRight, RefreshCw, CheckCircle } from "lucide-react";
 import { useClientAuthStore } from "../../store/clientAuth";
+
+interface ReferralStats {
+  myCode: string;
+  referralCount: number;
+  wasReferred: boolean;
+  referredByCode: string | null;
+  referred: { name: string; joinedAt: string; status: string }[];
+}
 
 function CodeBox({ code }: { code: string }) {
   const [copied, setCopied] = useState(false);
@@ -29,12 +37,33 @@ function CodeBox({ code }: { code: string }) {
 
 export default function ReferralPage() {
   const client = useClientAuthStore(s => s.client);
+  const token = useClientAuthStore(s => s.accessToken);
+  const [stats, setStats] = useState<ReferralStats | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const load = useCallback(async () => {
+    if (!token) { setLoading(false); return; }
+    setLoading(true);
+    try {
+      const r = await fetch("/api/portal/me/referral", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (r.ok) setStats(await r.json());
+    } finally {
+      setLoading(false);
+    }
+  }, [token]);
+
+  useEffect(() => { load(); }, [load]);
+
   if (!client) return null;
 
-  // Derive a short, memorable referral code from client number
+  // Fallback code derived from clientNumber (same as backend)
   const suffix = client.clientNumber.replace(/\D/g, "").slice(-5);
-  const referralCode = `PHX-${suffix || client.clientNumber.slice(-5).toUpperCase()}`;
-  const shareText = `Hi! I'm using Philix Finance for quick personal loans in Zambia. Apply online and get a decision fast. Use my referral code ${referralCode} when you register to get a preferential rate! 🎉 philixfinance.com`;
+  const fallbackCode = `PHX-${suffix || client.clientNumber.slice(-5).toUpperCase()}`;
+  const myCode = stats?.myCode ?? fallbackCode;
+
+  const shareText = `Hi! I'm using Philix Finance for quick personal loans in Zambia. Apply online and get a decision fast. Use my referral code ${myCode} when you register to get a preferential rate! 🎉 philixfinance.com`;
   const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(shareText)}`;
 
   const steps = [
@@ -61,13 +90,36 @@ export default function ReferralPage() {
         </p>
       </div>
 
+      {/* Live Stats */}
+      <div className="grid grid-cols-2 gap-4">
+        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 text-center">
+          {loading ? (
+            <div className="text-2xl font-bold text-slate-600 mb-1">—</div>
+          ) : (
+            <div className="text-2xl font-bold text-indigo-400 mb-1">{stats?.referralCount ?? 0}</div>
+          )}
+          <div className="text-xs text-slate-500">Friends Referred</div>
+        </div>
+        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 text-center">
+          <div className={`text-2xl font-bold mb-1 ${stats?.wasReferred ? "text-emerald-400" : "text-slate-600"}`}>
+            {stats?.wasReferred ? "Yes" : "No"}
+          </div>
+          <div className="text-xs text-slate-500">You Were Referred</div>
+        </div>
+      </div>
+
       {/* Referral Code */}
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4">
-        <div className="flex items-center gap-2">
-          <Share2 size={14} className="text-indigo-400" />
-          <h2 className="text-sm font-bold text-slate-300 uppercase tracking-wider">Your Referral Code</h2>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Share2 size={14} className="text-indigo-400" />
+            <h2 className="text-sm font-bold text-slate-300 uppercase tracking-wider">Your Referral Code</h2>
+          </div>
+          <button onClick={load} className="text-slate-600 hover:text-slate-400 p-1 rounded-lg hover:bg-slate-800 transition-all">
+            <RefreshCw size={13} className={loading ? "animate-spin" : ""} />
+          </button>
         </div>
-        <CodeBox code={referralCode} />
+        <CodeBox code={myCode} />
         <a href={whatsappUrl} target="_blank" rel="noopener noreferrer"
           className="flex items-center justify-center gap-2 w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold rounded-xl transition-all">
           <MessageCircle size={16} />
@@ -77,6 +129,35 @@ export default function ReferralPage() {
           Or copy the code and send it however you like
         </p>
       </div>
+
+      {/* Referred friends list */}
+      {stats && stats.referred.length > 0 && (
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <Users size={14} className="text-indigo-400" />
+            <h2 className="text-sm font-bold text-slate-300 uppercase tracking-wider">People You've Referred</h2>
+          </div>
+          <div className="space-y-2">
+            {stats.referred.map((r, i) => (
+              <div key={i} className="flex items-center justify-between bg-slate-800/60 border border-slate-700 rounded-xl px-4 py-2.5">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full bg-indigo-600/20 flex items-center justify-center text-xs font-bold text-indigo-400">
+                    {r.name[0]}
+                  </div>
+                  <div>
+                    <div className="text-sm font-semibold text-slate-200">{r.name}</div>
+                    <div className="text-xs text-slate-600">{new Date(r.joinedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</div>
+                  </div>
+                </div>
+                <div className={`flex items-center gap-1 text-xs font-semibold ${r.status === "ACTIVE" ? "text-emerald-400" : "text-amber-400"}`}>
+                  {r.status === "ACTIVE" && <CheckCircle size={11} />}
+                  {r.status.replace("_", " ")}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* How It Works */}
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
@@ -105,7 +186,7 @@ export default function ReferralPage() {
       {/* Benefits */}
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
         <div className="flex items-center gap-2 mb-4">
-          <TrendingDown size={14} className="text-emerald-400" />
+          <Gift size={14} className="text-emerald-400" />
           <h2 className="text-sm font-bold text-slate-300 uppercase tracking-wider">Benefits for Both</h2>
         </div>
         <div className="space-y-3">

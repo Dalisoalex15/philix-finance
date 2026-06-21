@@ -69,6 +69,10 @@ interface AccountDetail extends Account {
   }[];
   kycDocuments: { id: string; docType: string; uploadedAt: string }[];
   hasPassword: boolean;
+  isTrustedClient: boolean;
+  trustScore: number | null;
+  trustGrantedAt: string | null;
+  trustGrantedBy: string | null;
 }
 
 export default function PortalClientsPage() {
@@ -106,6 +110,10 @@ export default function PortalClientsPage() {
 
   // Delete
   const [deleteLoading, setDeleteLoading] = useState(false);
+  // Trust
+  const [trustLoading, setTrustLoading] = useState(false);
+  const [trustScore, setTrustScore] = useState<null | { score: number; grade: string; recommendation: string; maxLoanLimit: number; breakdown: Record<string,number>; stats: Record<string,unknown> }>(null);
+  const [trustScoreLoading, setTrustScoreLoading] = useState(false);
 
   function authHeaders() {
     return { "Content-Type": "application/json", Authorization: `Bearer ${getToken()}` };
@@ -198,6 +206,27 @@ export default function PortalClientsPage() {
       });
       if (r.ok) { await loadDetail(selected.id); await loadAccounts(); setKycModal(false); }
     } finally { setKycLoading(false); }
+  }
+
+  async function toggleTrust(grant: boolean) {
+    if (!selected) return;
+    setTrustLoading(true);
+    try {
+      const r = await fetch(`${API}/admin/portal-accounts/${selected.id}/trust`, {
+        method: "PATCH", headers: authHeaders(),
+        body: JSON.stringify({ isTrustedClient: grant }),
+      });
+      if (r.ok) { await loadDetail(selected.id); await loadAccounts(); }
+    } finally { setTrustLoading(false); }
+  }
+
+  async function loadTrustScore() {
+    if (!selected) return;
+    setTrustScoreLoading(true);
+    try {
+      const r = await fetch(`${API}/admin/portal-accounts/${selected.id}/trust-score`, { headers: authHeaders() });
+      if (r.ok) setTrustScore(await r.json());
+    } finally { setTrustScoreLoading(false); }
   }
 
   async function deleteAccount() {
@@ -354,10 +383,13 @@ export default function PortalClientsPage() {
                 {selected ? (
                   <>
                     <h2 className="font-bold text-slate-100 text-lg">{selected.firstName} {selected.lastName}</h2>
-                    <div className="flex items-center gap-2 mt-0.5">
+                    <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                       <span className="text-xs font-mono text-indigo-400">{selected.clientNumber}</span>
                       {statusBadge(selected.status)}
                       {kycBadge(selected.kycStatus)}
+                      {selected.isTrustedClient && (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border bg-amber-900/40 text-amber-300 border-amber-800/50">⭐ TRUSTED</span>
+                      )}
                     </div>
                   </>
                 ) : (
@@ -410,6 +442,17 @@ export default function PortalClientsPage() {
                     className="flex items-center gap-1 text-xs font-semibold text-teal-400 bg-teal-900/20 border border-teal-800/40 px-2.5 py-1.5 rounded-lg hover:bg-teal-900/40 transition-all">
                     <FileCheck size={12} /> KYC
                   </button>
+                  {!selected.isTrustedClient ? (
+                    <button onClick={() => toggleTrust(true)} disabled={trustLoading}
+                      className="flex items-center gap-1 text-xs font-semibold text-amber-400 bg-amber-900/20 border border-amber-800/40 px-2.5 py-1.5 rounded-lg hover:bg-amber-900/40 transition-all disabled:opacity-50">
+                      ⭐ Grant Trusted
+                    </button>
+                  ) : (
+                    <button onClick={() => toggleTrust(false)} disabled={trustLoading}
+                      className="flex items-center gap-1 text-xs font-semibold text-slate-400 bg-slate-800 border border-slate-700 px-2.5 py-1.5 rounded-lg hover:bg-slate-700 transition-all disabled:opacity-50">
+                      Revoke Trusted
+                    </button>
+                  )}
                   <button onClick={deleteAccount} disabled={deleteLoading}
                     className="flex items-center gap-1 text-xs font-semibold text-rose-400 bg-rose-900/20 border border-rose-800/40 px-2.5 py-1.5 rounded-lg hover:bg-rose-900/40 transition-all ml-auto disabled:opacity-50">
                     <Trash2 size={12} /> Delete Account
@@ -698,6 +741,58 @@ export default function PortalClientsPage() {
                             ))}
                           </tbody>
                         </table>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* ── Trust Score ── */}
+                <div className="philix-card overflow-hidden border border-amber-800/30">
+                  <button className="w-full flex items-center justify-between px-4 py-3 bg-amber-900/10" onClick={() => { toggleSection("trust"); if (expandedSection !== "trust") loadTrustScore(); }}>
+                    <div className="flex items-center gap-2 font-semibold text-amber-300 text-sm">⭐ Trust Score {selected.isTrustedClient && <span className="text-[10px] bg-amber-900/40 border border-amber-800/50 text-amber-300 px-2 py-0.5 rounded-full ml-1">ACTIVE</span>}</div>
+                    {expandedSection === "trust" ? <ChevronUp size={14} className="text-slate-500" /> : <ChevronDown size={14} className="text-slate-500" />}
+                  </button>
+                  {expandedSection === "trust" && (
+                    <div className="px-4 py-4 border-t border-amber-800/20 space-y-3">
+                      {trustScoreLoading ? (
+                        <div className="text-center text-slate-500 text-sm py-4">Computing trust score…</div>
+                      ) : trustScore ? (
+                        <>
+                          <div className="flex items-center gap-4">
+                            <div className="text-center">
+                              <div className={`text-3xl font-black ${trustScore.score >= 75 ? "text-emerald-400" : trustScore.score >= 60 ? "text-amber-400" : "text-red-400"}`}>{trustScore.score}</div>
+                              <div className="text-[10px] text-slate-500">/100</div>
+                            </div>
+                            <div>
+                              <div className={`text-sm font-bold ${trustScore.grade === "A" ? "text-emerald-400" : trustScore.grade === "B" ? "text-blue-400" : trustScore.grade === "C" ? "text-amber-400" : "text-red-400"}`}>Grade {trustScore.grade} — {trustScore.recommendation.replace(/_/g, " ")}</div>
+                              <div className="text-xs text-slate-500 mt-0.5">Max trusted loan: <span className="text-slate-300 font-semibold">K{trustScore.maxLoanLimit.toLocaleString()}</span></div>
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-2 gap-2 text-xs">
+                            {Object.entries(trustScore.breakdown).map(([k, v]) => (
+                              <div key={k} className="bg-slate-800/60 rounded-lg px-3 py-2">
+                                <div className="text-slate-500 capitalize mb-0.5">{k.replace(/([A-Z])/g, " $1").trim()}</div>
+                                <div className="font-bold text-slate-200">{v} pts</div>
+                              </div>
+                            ))}
+                          </div>
+                          <div className="flex items-center gap-3 text-xs text-slate-500">
+                            <span>{trustScore.stats.totalLoans as number} loans total</span>
+                            <span>·</span>
+                            <span>{trustScore.stats.disbursed as number} disbursed</span>
+                            <span>·</span>
+                            <span>{trustScore.stats.rejected as number} rejected</span>
+                          </div>
+                        </>
+                      ) : (
+                        <div className="text-center text-slate-500 text-sm py-4">
+                          <button onClick={loadTrustScore} className="text-amber-400 hover:text-amber-300 font-semibold">Load Trust Score</button>
+                        </div>
+                      )}
+                      {selected.isTrustedClient && selected.trustGrantedAt && (
+                        <div className="text-xs text-amber-400/70 bg-amber-900/10 border border-amber-800/20 rounded-lg px-3 py-2">
+                          Trusted status granted by {selected.trustGrantedBy} on {new Date(selected.trustGrantedAt).toLocaleDateString()}
+                        </div>
                       )}
                     </div>
                   )}

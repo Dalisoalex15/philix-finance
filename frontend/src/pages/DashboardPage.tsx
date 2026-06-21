@@ -189,7 +189,7 @@ export default function DashboardPage() {
               {formatKwacha(summary.totalDisbursedAmount)}
             </div>
             <div className="text-xs font-semibold text-navy-600 mt-0.5">Total Loans Disbursed</div>
-            <div className="text-xs text-navy-500">Principal paid out to clients</div>
+            <div className="text-xs text-navy-500">Zambian Kwacha (ZMW)</div>
           </div>
         </div>
         <div className="stat-card flex items-center gap-4">
@@ -201,7 +201,7 @@ export default function DashboardPage() {
               {formatKwacha(summary.totalInterestEarned)}
             </div>
             <div className="text-xs font-semibold text-navy-600 mt-0.5">Total Interest Earned</div>
-            <div className="text-xs text-navy-500">Revenue from all disbursed loans</div>
+            <div className="text-xs text-navy-500">Zambian Kwacha (ZMW)</div>
           </div>
         </div>
         <div className="stat-card flex items-center gap-4">
@@ -213,7 +213,7 @@ export default function DashboardPage() {
               {formatKwacha(summary.totalRepayable)}
             </div>
             <div className="text-xs font-semibold text-navy-600 mt-0.5">Total Amount Repayable</div>
-            <div className="text-xs text-navy-500">Principal + interest combined</div>
+            <div className="text-xs text-navy-500">Zambian Kwacha (ZMW)</div>
           </div>
         </div>
       </div>

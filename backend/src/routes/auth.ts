@@ -223,5 +223,54 @@ router.post("/change-password", authenticate, wrap(async (req: Request, res: Res
   res.json({ message: "Password changed successfully" });
 }));
 
+// POST /api/auth/staff-register — public endpoint for staff self-registration
+// Requires a valid admin authorisation code (not a JWT) to prevent unauthorised signups
+router.post("/staff-register", wrap(async (req: Request, res: Response) => {
+  const { firstName, lastName, email, phone, role, employeeNumber, password, adminCode } = req.body as {
+    firstName: string; lastName: string; email: string; phone: string;
+    role: string; employeeNumber?: string; password: string; adminCode: string;
+  };
+
+  const validCode = process.env.STAFF_REGISTER_CODE || "PHILIX2025";
+  if (adminCode !== validCode) {
+    return res.status(403).json({ error: "Invalid admin authorisation code" });
+  }
+
+  if (!email || !email.toLowerCase().trim().endsWith("@philixfinance.com")) {
+    return res.status(400).json({ error: "Must use a @philixfinance.com email address" });
+  }
+
+  if (!password || password.length < 8) {
+    return res.status(400).json({ error: "Password must be at least 8 characters" });
+  }
+
+  const validRoles = ["CEO", "MANAGER", "LOAN_OFFICER", "COLLECTIONS_OFFICER", "ACCOUNTANT"];
+  if (!role || !validRoles.includes(role)) {
+    return res.status(400).json({ error: "Invalid role selected" });
+  }
+
+  if (!firstName || !lastName) {
+    return res.status(400).json({ error: "First name and last name are required" });
+  }
+
+  const normalEmail = email.toLowerCase().trim();
+  const existing = await prisma.user.findUnique({ where: { email: normalEmail } });
+  if (existing) {
+    return res.status(409).json({ error: "This email address is already registered" });
+  }
+
+  const passwordHash = await bcrypt.hash(password, 12);
+  const year = new Date().getFullYear();
+  const rand = Math.floor(Math.random() * 9000) + 1000;
+  const employeeId = employeeNumber?.trim() || `EMP-${year}-${rand}`;
+
+  const user = await prisma.user.create({
+    data: { firstName, lastName, email: normalEmail, phone, role, employeeId, passwordHash },
+    select: { id: true, employeeId: true, firstName: true, lastName: true, email: true, role: true },
+  });
+
+  res.status(201).json(user);
+}));
+
 export default router;
 

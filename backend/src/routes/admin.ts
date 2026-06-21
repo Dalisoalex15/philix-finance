@@ -156,6 +156,7 @@ router.get("/summary", wrap(async (_req: Request, res: Response) => {
     "prod-004": { 1: 10, 2: 20, 3: 30, 4: 35 },
     "prod-005": { 1:  8, 2: 16, 3: 24, 4: 30 },
     "prod-006": { 1:  7, 2: 14, 3: 21, 4: 28 },
+    "prod-007": { 4: 8, 8: 15, 12: 22, 16: 28, 20: 33, 24: 38 },
   };
 
   const [
@@ -345,6 +346,127 @@ router.delete("/portal-accounts/:id", wrap(async (req: Request, res: Response) =
   await prisma.portalRefreshToken.deleteMany({ where: { accountId: id } });
   await prisma.clientPortalAccount.delete({ where: { id } });
   res.json({ success: true });
+}));
+
+// PATCH /api/admin/portal-accounts/:id/trust — grant or revoke trusted client status
+router.patch("/portal-accounts/:id/trust", wrap(async (req: Request, res: Response) => {
+  const user = (req as any).user;
+  const { isTrustedClient } = req.body as { isTrustedClient: boolean };
+
+  const updated = await prisma.clientPortalAccount.update({
+    where: { id: req.params.id },
+    data: {
+      isTrustedClient: !!isTrustedClient,
+      trustGrantedAt: isTrustedClient ? new Date() : null,
+      trustGrantedBy: isTrustedClient ? `${user.firstName} ${user.lastName}` : null,
+    },
+    select: { id: true, isTrustedClient: true, trustGrantedAt: true, trustGrantedBy: true },
+  });
+
+  // Send in-app notification to the client
+  if (isTrustedClient) {
+    await prisma.clientNotification.create({
+      data: {
+        accountId: req.params.id,
+        subject: "🎉 You've been upgraded to Trusted Client status!",
+        body: "Congratulations! You have been granted Trusted Client status by Philix Finance. You now have access to the Trusted Client Express Loan — financing without collateral, based on your outstanding repayment history. Log in to apply now!",
+        category: "ACCOUNT",
+      },
+    }).catch(() => {});
+  }
+
+  res.json(updated);
+}));
+
+// GET /api/admin/portal-accounts/:id/trust-score — compute trust score for a client
+router.get("/portal-accounts/:id/trust-score", wrap(async (req: Request, res: Response) => {
+  const account = await prisma.clientPortalAccount.findUnique({
+    where: { id: req.params.id },
+    include: {
+      portalLoans: {
+        select: { status: true, amountRequested: true, createdAt: true, reviewedAt: true, termMonths: true },
+        orderBy: { createdAt: "desc" },
+      },
+    },
+  });
+  if (!account) return res.status(404).json({ error: "Account not found" });
+
+  const loans = (account as any).portalLoans ?? [];
+  const disbursed = loans.filter((l: any) => l.status === "DISBURSED").length;
+  const approved  = loans.filter((l: any) => l.status === "APPROVED" || l.status === "DISBURSED").length;
+  const rejected  = loans.filter((l: any) => l.status === "REJECTED").length;
+  const total     = loans.length;
+
+  // Trust score out of 100
+  let score = 0;
+
+  // Repayment History (40 pts) — based on completed/disbursed loans
+  score += Math.min(40, disbursed * 10);
+
+  // Income Stability (25 pts) — based on having income on file
+  if ((account as any).monthlyIncome && (account as any).monthlyIncome > 0) score += 15;
+  if ((account as any).employer) score += 10;
+
+  // Employment Duration (15 pts) — based on account age
+  const accountAgeMonths = Math.floor((Date.now() - new Date((account as any).createdAt).getTime()) / (30 * 86400000));
+  score += Math.min(15, accountAgeMonths);
+
+  // Existing Relationship (10 pts) — total loans taken
+  score += Math.min(10, total * 2);
+
+  // Verification Success (10 pts) — KYC and profile completeness
+  if ((account as any).kycStatus === "VERIFIED") score += 7;
+  if ((account as any).nrcNumber) score += 3;
+
+  // Deductions for bad behavior
+  if (rejected > 0) score = Math.max(0, score - rejected * 5);
+
+  score = Math.min(100, Math.max(0, score));
+
+  // Approval band
+  let recommendation: string;
+  let grade: string;
+  if (score >= 90)      { recommendation = "AUTOMATIC_APPROVAL"; grade = "A"; }
+  else if (score >= 75) { recommendation = "MANAGER_REVIEW";     grade = "B"; }
+  else if (score >= 60) { recommendation = "SENIOR_REVIEW";      grade = "C"; }
+  else                  { recommendation = "DECLINE";             grade = "D"; }
+
+  // Loan limit based on tier
+  let maxLoanLimit: number;
+  if (disbursed === 0)     maxLoanLimit = 0;
+  else if (disbursed <= 1) maxLoanLimit = 5000;
+  else if (disbursed <= 3) maxLoanLimit = 10000;
+  else                     maxLoanLimit = 25000;
+
+  // Update stored trust score
+  await prisma.clientPortalAccount.update({
+    where: { id: req.params.id },
+    data: { trustScore: score },
+  });
+
+  res.json({
+    score,
+    grade,
+    recommendation,
+    maxLoanLimit,
+    breakdown: {
+      repaymentHistory: Math.min(40, disbursed * 10),
+      incomeStability:  ((account as any).monthlyIncome ? 15 : 0) + ((account as any).employer ? 10 : 0),
+      accountAge:       Math.min(15, accountAgeMonths),
+      relationship:     Math.min(10, total * 2),
+      verification:     ((account as any).kycStatus === "VERIFIED" ? 7 : 0) + ((account as any).nrcNumber ? 3 : 0),
+    },
+    stats: {
+      totalLoans: total,
+      disbursed,
+      approved,
+      rejected,
+      accountAgeMonths,
+      isTrustedClient: (account as any).isTrustedClient,
+      trustGrantedAt: (account as any).trustGrantedAt,
+      trustGrantedBy: (account as any).trustGrantedBy,
+    },
+  });
 }));
 
 // POST /api/admin/wipe-demo-data — clean-slate launch (SUPER_ADMIN only)

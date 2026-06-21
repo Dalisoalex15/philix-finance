@@ -84,6 +84,7 @@ const PRODUCT_RATES: Record<string, Record<number, number>> = {
   "prod-004": { 1: 10, 2: 20, 3: 30, 4: 35 },
   "prod-005": { 1:  8, 2: 16, 3: 24, 4: 30 },
   "prod-006": { 1:  7, 2: 14, 3: 21, 4: 28 },
+  "prod-007": { 4: 8, 8: 15, 12: 22, 16: 28, 20: 33, 24: 38 },
 };
 
 const PRODUCT_NAMES: Record<string, string> = {
@@ -93,6 +94,7 @@ const PRODUCT_NAMES: Record<string, string> = {
   "prod-004": "Electronics Equity Loan",
   "prod-005": "Repeat Customer Loyalty Loan",
   "prod-006": "Premium Client Loan",
+  "prod-007": "Trusted Client Express Loan",
 };
 
 function fromApiApp(a: StaffPortalApplication): LoanApplication {

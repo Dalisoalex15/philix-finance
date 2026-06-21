@@ -98,6 +98,12 @@ model ClientPortalAccount {
   lockedUntil       DateTime?
   lastLoginAt       DateTime?
   emailVerified     Boolean  @default(false)
+  referredByCode    String?  // referral code this account used at registration
+  lastLoginIp       String?
+  isTrustedClient   Boolean  @default(false)
+  trustScore        Int?      // 0-100 computed trust score
+  trustGrantedAt    DateTime?
+  trustGrantedBy    String?
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 

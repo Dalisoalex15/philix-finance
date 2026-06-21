@@ -22,6 +22,10 @@ export interface ClientUser {
   kycStatus: "NOT_STARTED" | "SUBMITTED" | "VERIFIED" | "REJECTED";
   avatarInitials: string;
   joinedAt: string;
+  isTrustedClient?: boolean;
+  trustScore?: number;
+  trustGrantedAt?: string;
+  trustGrantedBy?: string;
 }
 
 // No demo clients — all clients come from the real database
@@ -64,6 +68,10 @@ function toClientUser(account: ClientAccount): ClientUser {
     kycStatus: account.kycStatus as ClientUser["kycStatus"],
     avatarInitials: `${account.firstName[0]}${account.lastName[0]}`.toUpperCase(),
     joinedAt: account.createdAt,
+    isTrustedClient: account.isTrustedClient ?? false,
+    trustScore: account.trustScore,
+    trustGrantedAt: account.trustGrantedAt,
+    trustGrantedBy: account.trustGrantedBy,
   };
 }
 

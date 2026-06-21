@@ -29,7 +29,13 @@ router.post("/register", wrap(async (req: Request, res: Response) => {
     firstName, lastName, email, phone, password,
     dateOfBirth, gender, address, city,
     occupation, employer, monthlyIncome, nrcNumber,
-  } = req.body;
+    referralCode,
+  } = req.body as {
+    firstName: string; lastName: string; email: string; phone: string; password: string;
+    dateOfBirth?: string; gender?: string; address?: string; city?: string;
+    occupation?: string; employer?: string; monthlyIncome?: string; nrcNumber?: string;
+    referralCode?: string;
+  };
 
   if (!firstName || !lastName || !email || !phone || !password) {
     throw new AppError("Required fields missing", 400);
@@ -65,6 +71,7 @@ router.post("/register", wrap(async (req: Request, res: Response) => {
       nrcNumber,
       status: "PENDING_KYC",
       kycStatus: "NOT_STARTED",
+      referredByCode: referralCode ? referralCode.trim().toUpperCase() : null,
     },
   });
 

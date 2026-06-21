@@ -323,6 +323,10 @@ export interface ClientAccount {
   status: "ACTIVE" | "PENDING_KYC" | "SUSPENDED" | "BLACKLISTED";
   lastLoginAt?: string;
   createdAt: string;
+  isTrustedClient?: boolean;
+  trustScore?: number;
+  trustGrantedAt?: string;
+  trustGrantedBy?: string;
   notifications?: { id: string }[];
   portalLoans?: PortalApplication[];
   kycDocuments?: KycDoc[];

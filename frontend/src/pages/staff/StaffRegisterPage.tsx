@@ -25,6 +25,8 @@ export default function StaffRegisterPage() {
     adminCode: "",
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [loading, setLoading] = useState(false);
+  const [apiError, setApiError] = useState("");
 
   const set = (key: string, value: string) => {
     setForm(prev => ({ ...prev, [key]: value }));
@@ -59,11 +61,38 @@ export default function StaffRegisterPage() {
     return Object.keys(e).length === 0;
   };
 
-  const handleNext = () => {
+  const handleNext = async () => {
     if (step === 1 && validateStep1()) setStep(2);
     else if (step === 2 && validateStep2()) setStep(3);
     else if (step === 3 && validateStep3()) {
-      setTimeout(() => setDone(true), 1000);
+      setLoading(true);
+      setApiError("");
+      try {
+        const r = await fetch('/api/auth/staff-register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            firstName: form.firstName,
+            lastName: form.lastName,
+            email: form.email,
+            phone: form.phone,
+            role: form.role,
+            employeeNumber: form.employeeNumber,
+            password: form.password,
+            adminCode: form.adminCode,
+          }),
+        });
+        const data = await r.json();
+        if (r.ok) {
+          setDone(true);
+        } else {
+          setApiError(data.error || 'Registration failed. Please try again.');
+        }
+      } catch {
+        setApiError('Network error — please check your connection.');
+      } finally {
+        setLoading(false);
+      }
     }
   };
 
@@ -213,14 +242,19 @@ export default function StaffRegisterPage() {
             </div>
           )}
 
+          {apiError && (
+            <div className="mb-4 bg-red-900/20 border border-red-800/40 rounded-xl px-4 py-3 text-sm text-red-400">
+              {apiError}
+            </div>
+          )}
           <div className="flex gap-3 mt-6">
             {step > 1 && (
               <button onClick={() => setStep(step - 1)} className="flex items-center gap-1 px-4 py-2.5 text-sm text-slate-400 hover:text-slate-200 border border-slate-700 rounded-xl">
                 <ArrowLeft size={14} /> Back
               </button>
             )}
-            <button onClick={handleNext} className="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-2.5 rounded-xl text-sm flex items-center justify-center gap-2 transition-all">
-              {step === 3 ? <><UserPlus size={14} /> Create Account</> : <>Continue →</>}
+            <button onClick={handleNext} disabled={loading} className="flex-1 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-white font-semibold py-2.5 rounded-xl text-sm flex items-center justify-center gap-2 transition-all">
+              {loading ? <>Creating Account…</> : step === 3 ? <><UserPlus size={14} /> Create Account</> : <>Continue →</>}
             </button>
           </div>
         </div>
