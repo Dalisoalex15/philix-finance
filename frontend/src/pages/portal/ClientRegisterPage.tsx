@@ -11,9 +11,11 @@ export default function ClientRegisterPage() {
   const registerWithApi = useClientAuthStore(s => s.registerWithApi);
   const [step, setStep] = useState(0);
   const [done, setDone] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [showPass, setShowPass] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [apiError, setApiError] = useState("");
+  const [emailExists, setEmailExists] = useState(false);
 
   const [form, setForm] = useState({
     firstName: "", lastName: "", dateOfBirth: "", gender: "",
@@ -58,30 +60,39 @@ export default function ClientRegisterPage() {
 
   const next = async () => {
     if (!validate()) return;
-    if (step < 3) { setStep(step + 1); }
-    else {
-      setApiError("");
-      try {
-        await registerWithApi({
-          firstName: form.firstName,
-          lastName: form.lastName,
-          email: form.email,
-          phone: form.phone,
-          password: form.password,
-          dateOfBirth: form.dateOfBirth || undefined,
-          gender: form.gender || undefined,
-          address: form.address || undefined,
-          city: form.city || undefined,
-          nrcNumber: form.nrcNumber || undefined,
-          occupation: form.occupation || undefined,
-          employer: form.employer || undefined,
-          monthlyIncome: form.monthlyIncome ? Number(form.monthlyIncome) : undefined,
-          referralCode: form.referralCode.trim().toUpperCase() || undefined,
-        });
-        setDone(true);
-      } catch (err: unknown) {
-        setApiError(err instanceof Error ? err.message : "Registration failed. Please try again.");
+    if (step < 3) { setStep(step + 1); return; }
+
+    if (submitting) return; // prevent double-tap
+    setSubmitting(true);
+    setApiError("");
+    setEmailExists(false);
+    try {
+      await registerWithApi({
+        firstName: form.firstName,
+        lastName: form.lastName,
+        email: form.email,
+        phone: form.phone,
+        password: form.password,
+        dateOfBirth: form.dateOfBirth || undefined,
+        gender: form.gender || undefined,
+        address: form.address || undefined,
+        city: form.city || undefined,
+        nrcNumber: form.nrcNumber || undefined,
+        occupation: form.occupation || undefined,
+        employer: form.employer || undefined,
+        monthlyIncome: form.monthlyIncome ? Number(form.monthlyIncome) : undefined,
+        referralCode: form.referralCode.trim().toUpperCase() || undefined,
+      });
+      setDone(true);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Registration failed. Please try again.";
+      if (msg.toLowerCase().includes("already exists") || msg.toLowerCase().includes("already registered")) {
+        setEmailExists(true);
+      } else {
+        setApiError(msg);
       }
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -143,6 +154,16 @@ export default function ClientRegisterPage() {
             ))}
           </div>
 
+          {emailExists && (
+            <div className="mb-4 bg-amber-900/20 border border-amber-700/40 rounded-xl p-4">
+              <div className="font-semibold text-amber-300 text-sm mb-1">This email is already registered</div>
+              <div className="text-slate-400 text-xs mb-3">An account with <span className="text-white font-mono">{form.email}</span> already exists. Did you mean to sign in?</div>
+              <div className="flex gap-2">
+                <Link to="/portal/login" className="flex-1 text-center text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white py-2 rounded-lg">Sign in instead →</Link>
+                <button onClick={() => { setEmailExists(false); setStep(0); }} className="flex-1 text-xs font-semibold border border-slate-700 text-slate-400 hover:text-slate-200 py-2 rounded-lg">Use a different email</button>
+              </div>
+            </div>
+          )}
           {apiError && (
             <div className="mb-4 bg-red-900/20 border border-red-700/40 rounded-xl p-3 flex items-center gap-2 text-red-300 text-sm">
               {apiError}
@@ -342,8 +363,9 @@ export default function ClientRegisterPage() {
                   <ArrowLeft size={14} /> Back
                 </button>
               )}
-              <button onClick={next} className="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-2.5 rounded-xl text-sm flex items-center justify-center gap-2 transition-all">
-                {step === 3 ? "Create Account ✓" : "Continue →"}
+              <button onClick={next} disabled={submitting}
+                className="flex-1 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold py-2.5 rounded-xl text-sm flex items-center justify-center gap-2 transition-all">
+                {submitting ? "Creating account…" : step === 3 ? "Create Account ✓" : "Continue →"}
               </button>
             </div>
           </div>
