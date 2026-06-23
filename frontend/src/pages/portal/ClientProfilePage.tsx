@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useClientAuthStore } from "../../store/clientAuth";
-import { CheckCircle, Edit3, Eye, EyeOff, Shield } from "lucide-react";
+import { CheckCircle, Edit3, Eye, EyeOff, Shield, HeartHandshake } from "lucide-react";
 
 export default function ClientProfilePage() {
   const client = useClientAuthStore(s => s.client)!;
@@ -18,6 +18,16 @@ export default function ClientProfilePage() {
   const [passError, setPassError] = useState("");
   const [passSaved, setPassSaved] = useState(false);
 
+  // Next of kin
+  const [nokForm, setNokForm] = useState({
+    nextOfKinName: (client as any).nextOfKinName || "",
+    nextOfKinPhone: (client as any).nextOfKinPhone || "",
+    nextOfKinRelation: (client as any).nextOfKinRelation || "",
+  });
+  const [nokSaved, setNokSaved] = useState(false);
+  const [nokError, setNokError] = useState("");
+  const [nokEditMode, setNokEditMode] = useState(false);
+
   const save = async () => {
     const token = localStorage.getItem("philix_portal_token");
     try {
@@ -33,6 +43,25 @@ export default function ClientProfilePage() {
       }
     } catch {
       // ignore — show no error, form still shows
+    }
+  };
+
+  const saveNok = async () => {
+    setNokError("");
+    const token = localStorage.getItem("philix_portal_token");
+    try {
+      const r = await fetch("/api/portal/me/nok", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify(nokForm),
+      });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) { setNokError(data.error || data.message || "Failed to save"); return; }
+      setNokSaved(true);
+      setNokEditMode(false);
+      setTimeout(() => setNokSaved(false), 3000);
+    } catch {
+      setNokError("Network error — please try again");
     }
   };
 
@@ -167,6 +196,52 @@ export default function ClientProfilePage() {
         {editMode && (
           <button onClick={save} className="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-5 py-2.5 rounded-xl text-sm transition-all">
             Save Changes
+          </button>
+        )}
+      </div>
+
+      {/* Next of Kin */}
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="font-bold text-slate-200 flex items-center gap-2"><HeartHandshake size={16} className="text-orange-400" /> Emergency Contact (Next of Kin)</h3>
+            <p className="text-xs text-slate-500 mt-0.5">Required for loan overdue alerts — we contact your NOK if 14+ days overdue</p>
+          </div>
+          <button onClick={() => setNokEditMode(!nokEditMode)}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-orange-400 border border-orange-800/50 rounded-xl hover:bg-orange-900/20 transition-all">
+            <Edit3 size={11} /> {nokEditMode ? "Cancel" : "Edit"}
+          </button>
+        </div>
+        {nokSaved && (
+          <div className="flex items-center gap-1.5 text-emerald-400 text-sm bg-emerald-900/20 border border-emerald-800/40 px-3 py-2 rounded-xl">
+            <CheckCircle size={14} /> Emergency contact saved
+          </div>
+        )}
+        {nokError && <div className="text-sm text-red-400 bg-red-900/20 border border-red-800/40 px-3 py-2 rounded-xl">{nokError}</div>}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {[
+            { k: "nextOfKinName", l: "Full Name", ph: "e.g. Jane Phiri" },
+            { k: "nextOfKinPhone", l: "Phone Number", ph: "e.g. 0977 123 456" },
+            { k: "nextOfKinRelation", l: "Relationship", ph: "e.g. Spouse, Parent, Sibling" },
+          ].map(f => (
+            <div key={f.k}>
+              <label className="text-xs text-slate-400 mb-1 block">{f.l}</label>
+              {nokEditMode ? (
+                <input className="w-full bg-slate-800 border border-slate-700 text-slate-100 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 placeholder:text-slate-600"
+                  placeholder={f.ph}
+                  value={(nokForm as Record<string,string>)[f.k]}
+                  onChange={e => setNokForm(p => ({ ...p, [f.k]: e.target.value }))} />
+              ) : (
+                <div className="bg-slate-800/50 rounded-xl px-3 py-2.5 text-sm border border-slate-800 text-slate-300">
+                  {(nokForm as Record<string,string>)[f.k] || <span className="text-slate-600">Not set</span>}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+        {nokEditMode && (
+          <button onClick={saveNok} className="bg-orange-700 hover:bg-orange-600 text-white font-semibold px-5 py-2.5 rounded-xl text-sm transition-all">
+            Save Emergency Contact
           </button>
         )}
       </div>

@@ -883,6 +883,29 @@ export default function MyLoansPage() {
         </div>
       )}
 
+      {/* Loan Renewal CTA — shown when a disbursed loan is 90%+ through its term */}
+      {!loading && activeApps.filter(a => a.status === "DISBURSED" && pct(a) >= 90).map(app => (
+        <div key={`renew-${app.id}`} className="bg-gradient-to-r from-indigo-900/40 to-purple-900/30 border border-indigo-700/50 rounded-2xl p-5">
+          <div className="flex items-start gap-4">
+            <div className="w-10 h-10 rounded-xl bg-indigo-600/30 flex items-center justify-center flex-shrink-0">
+              <RefreshCw size={18} className="text-indigo-400" />
+            </div>
+            <div className="flex-1">
+              <div className="font-bold text-indigo-200 text-sm mb-1">🔄 Ready to Renew?</div>
+              <div className="text-xs text-slate-400 mb-3">
+                Your {app.productType.replace(/_/g, " ")} loan is almost complete. Apply for a new loan instantly — your profile and details are already saved.
+              </div>
+              <button
+                onClick={() => setReloanTarget(app)}
+                className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition-all"
+              >
+                <RefreshCw size={12} /> Renew Loan in One Tap
+              </button>
+            </div>
+          </div>
+        </div>
+      ))}
+
       {/* History */}
       {!loading && historyApps.length > 0 && (
         <div className="space-y-3">

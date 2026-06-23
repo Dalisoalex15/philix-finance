@@ -68,6 +68,12 @@ export default function CEODashboardPage() {
   const [accountActionLoading, setAccountActionLoading] = useState<string | null>(null);
   const [portalAccounts, setPortalAccounts] = useState<PortalAccount[]>([]);
   const [accountsLoading, setAccountsLoading] = useState(false);
+  const [branchLeaderboard, setBranchLeaderboard] = useState<{
+    branch: string; rank: number; officers: number; totalDisbursed: number;
+    activeLoans: number; disbursedCount: number; collectionRate: number; parRate: number; score: number;
+  }[]>([]);
+  const [statementsLoading, setStatementsLoading] = useState(false);
+  const [statementsMsg, setStatementsMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   const fetchActivity = useCallback(async () => {
     setActivityLoading(true);
@@ -92,10 +98,12 @@ export default function CEODashboardPage() {
     try {
       const token = localStorage.getItem("philix_staff_token");
       if (!token) return;
-      const res = await fetch("/api/admin/portal-accounts", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.ok) setPortalAccounts(await res.json());
+      const [accRes, lbRes] = await Promise.all([
+        fetch("/api/admin/portal-accounts", { headers: { Authorization: `Bearer ${token}` } }),
+        fetch("/api/admin/stats/branch-leaderboard", { headers: { Authorization: `Bearer ${token}` } }),
+      ]);
+      if (accRes.ok) setPortalAccounts(await accRes.json());
+      if (lbRes.ok) setBranchLeaderboard(await lbRes.json());
     } catch {
       // ignore
     } finally {
@@ -156,6 +164,23 @@ export default function CEODashboardPage() {
     } catch { /* ignore */ } finally {
       setAccountActionLoading(null);
     }
+  }
+
+  async function sendMonthlyStatements() {
+    setStatementsLoading(true);
+    setStatementsMsg(null);
+    try {
+      const token = localStorage.getItem("philix_staff_token");
+      const r = await fetch("/api/admin/send-statements", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({}),
+      });
+      const d = await r.json();
+      if (r.ok) setStatementsMsg({ ok: true, text: `Monthly statements sent to ${d.sent} clients` });
+      else setStatementsMsg({ ok: false, text: d.error || "Failed to send statements" });
+    } catch { setStatementsMsg({ ok: false, text: "Network error" }); }
+    finally { setStatementsLoading(false); }
   }
 
   // Account status breakdown
@@ -502,6 +527,74 @@ export default function CEODashboardPage() {
             </table>
           </div>
         )}
+      </div>
+
+      {/* Branch Leaderboard */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="philix-card p-5">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="section-title flex items-center gap-2">
+                <BarChart2 size={16} className="text-purple-500" />
+                Branch Leaderboard
+              </h3>
+              <p className="text-xs text-navy-600 mt-0.5">UNZA · CBU · UNILUS performance ranking</p>
+            </div>
+          </div>
+          {branchLeaderboard.length === 0 ? (
+            <div className="text-sm text-navy-500 py-6 text-center">No branch data yet — assign officers to branches first</div>
+          ) : (
+            <div className="space-y-3">
+              {branchLeaderboard.map((b, i) => (
+                <div key={b.branch} className={`rounded-xl p-4 border ${i === 0 ? "border-yellow-300 bg-yellow-50" : i === 1 ? "border-warm-300 bg-warm-50" : "border-warm-200 bg-warm-50"}`}>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <span className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-black ${i === 0 ? "bg-yellow-400 text-white" : i === 1 ? "bg-gray-300 text-gray-700" : "bg-amber-600 text-white"}`}>
+                        {b.rank}
+                      </span>
+                      <span className="font-bold text-navy-800">{b.branch}</span>
+                    </div>
+                    <span className="text-xs font-bold text-navy-600">Score: {b.score}</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 text-xs">
+                    <div><div className="text-navy-500">Disbursed</div><div className="font-semibold text-navy-800">K{b.totalDisbursed.toLocaleString()}</div></div>
+                    <div><div className="text-navy-500">Collection</div><div className={`font-semibold ${b.collectionRate >= 80 ? "text-emerald-600" : b.collectionRate >= 60 ? "text-amber-600" : "text-red-600"}`}>{b.collectionRate}%</div></div>
+                    <div><div className="text-navy-500">PAR Rate</div><div className={`font-semibold ${b.parRate <= 5 ? "text-emerald-600" : b.parRate <= 15 ? "text-amber-600" : "text-red-600"}`}>{b.parRate}%</div></div>
+                  </div>
+                  <div className="mt-2">
+                    <div className="h-1.5 bg-warm-200 rounded-full overflow-hidden">
+                      <div className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-400 transition-all" style={{ width: `${Math.min(100, b.collectionRate)}%` }} />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Monthly Statements */}
+        <div className="philix-card p-5">
+          <div className="mb-4">
+            <h3 className="section-title flex items-center gap-2">
+              <FileText size={16} className="text-blue-500" />
+              Monthly Statements
+            </h3>
+            <p className="text-xs text-navy-600 mt-0.5">Send monthly statements to all active clients</p>
+          </div>
+          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-4">
+            <div className="text-sm font-semibold text-blue-800 mb-1">Auto Statement Delivery</div>
+            <div className="text-xs text-blue-600">Sends personalised in-app statements to every client with an active loan. Each client receives their loan summary, outstanding balance, and a prompt to view payment history.</div>
+          </div>
+          {statementsMsg && (
+            <div className={`text-xs px-3 py-2 rounded-lg mb-3 ${statementsMsg.ok ? "text-emerald-700 bg-emerald-100 border border-emerald-200" : "text-red-700 bg-red-100"}`}>
+              {statementsMsg.text}
+            </div>
+          )}
+          <button onClick={sendMonthlyStatements} disabled={statementsLoading}
+            className="w-full flex items-center justify-center gap-2 py-3 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-xl text-sm transition-all disabled:opacity-50">
+            {statementsLoading ? <><RefreshCw size={14} className="animate-spin" /> Sending…</> : "📧 Send Monthly Statements Now"}
+          </button>
+        </div>
       </div>
 
       {/* Live Activity Feed */}

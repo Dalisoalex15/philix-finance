@@ -32,13 +32,33 @@ router.get("/", wrap(async (req: Request, res: Response) => {
 // PATCH /api/portal/me — update profile
 router.patch("/", wrap(async (req: Request, res: Response) => {
   const id = (req as Request & { portalAccountId: string }).portalAccountId;
-  const { phone, address, city, occupation, employer } = req.body;
+  const { phone, address, city, occupation, employer, monthlyIncome } = req.body;
   const account = await prisma.clientPortalAccount.update({
     where: { id },
-    data: { phone, address, city, occupation, employer },
+    data: {
+      ...(phone !== undefined && { phone }),
+      ...(address !== undefined && { address }),
+      ...(city !== undefined && { city }),
+      ...(occupation !== undefined && { occupation }),
+      ...(employer !== undefined && { employer }),
+      ...(monthlyIncome !== undefined && { monthlyIncome: parseFloat(monthlyIncome) || null }),
+    },
   });
   const { passwordHash, ...safe } = account as Record<string, unknown>;
   res.json(safe);
+}));
+
+// PATCH /api/portal/me/nok — update next-of-kin contact
+router.patch("/nok", wrap(async (req: Request, res: Response) => {
+  const id = (req as Request & { portalAccountId: string }).portalAccountId;
+  const { nextOfKinName, nextOfKinPhone, nextOfKinRelation } = req.body;
+  if (!nextOfKinName || !nextOfKinPhone) throw new AppError("Name and phone are required", 400);
+  const account = await prisma.clientPortalAccount.update({
+    where: { id },
+    data: { nextOfKinName, nextOfKinPhone, nextOfKinRelation },
+    select: { id: true, nextOfKinName: true, nextOfKinPhone: true, nextOfKinRelation: true },
+  });
+  res.json(account);
 }));
 
 // POST /api/portal/me/change-password

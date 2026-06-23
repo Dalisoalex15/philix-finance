@@ -115,6 +115,19 @@ export default function PortalClientsPage() {
   const [trustScore, setTrustScore] = useState<null | { score: number; grade: string; recommendation: string; maxLoanLimit: number; breakdown: Record<string,number>; stats: Record<string,unknown> }>(null);
   const [trustScoreLoading, setTrustScoreLoading] = useState(false);
 
+  // Blacklist
+  const [blacklistModal, setBlacklistModal] = useState(false);
+  const [blacklistReason, setBlacklistReason] = useState("");
+  const [blacklistLoading, setBlacklistLoading] = useState(false);
+
+  // Credit score
+  const [creditScore, setCreditScore] = useState<null | { score: number; grade: string; band: string; color: string; total: number; disbursed: number; rejected: number }>(null);
+  const [creditScoreLoading, setCreditScoreLoading] = useState(false);
+
+  // NOK alert
+  const [nokAlertLoading, setNokAlertLoading] = useState(false);
+  const [nokAlertMsg, setNokAlertMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
   function authHeaders() {
     return { "Content-Type": "application/json", Authorization: `Bearer ${getToken()}` };
   }
@@ -244,6 +257,47 @@ export default function PortalClientsPage() {
     } finally { setDeleteLoading(false); }
   }
 
+  async function toggleBlacklist(bl: boolean) {
+    if (!selected) return;
+    if (bl && !blacklistReason.trim()) return;
+    setBlacklistLoading(true);
+    try {
+      const r = await fetch(`${API}/admin/portal-accounts/${selected.id}/blacklist`, {
+        method: "POST", headers: authHeaders(),
+        body: JSON.stringify({ blacklist: bl, reason: blacklistReason }),
+      });
+      if (r.ok) {
+        await loadDetail(selected.id);
+        await loadAccounts();
+        setBlacklistModal(false);
+        setBlacklistReason("");
+      }
+    } finally { setBlacklistLoading(false); }
+  }
+
+  async function loadCreditScore() {
+    if (!selected) return;
+    setCreditScoreLoading(true);
+    try {
+      const r = await fetch(`${API}/admin/portal-accounts/${selected.id}/credit-score`, { headers: authHeaders() });
+      if (r.ok) setCreditScore(await r.json());
+    } finally { setCreditScoreLoading(false); }
+  }
+
+  async function sendNokAlert() {
+    if (!selected) return;
+    setNokAlertLoading(true);
+    setNokAlertMsg(null);
+    try {
+      const r = await fetch(`${API}/admin/portal-accounts/${selected.id}/nok-alert`, {
+        method: "POST", headers: authHeaders(),
+      });
+      const data = await r.json();
+      if (r.ok) setNokAlertMsg({ ok: true, text: `Alert sent to ${data.name} (${data.sentTo})` });
+      else setNokAlertMsg({ ok: false, text: data.error || "Failed to send alert" });
+    } finally { setNokAlertLoading(false); }
+  }
+
   function closePanel() {
     setSelected(null);
     setResetModal(false);
@@ -251,6 +305,10 @@ export default function PortalClientsPage() {
     setNotifyModal(false);
     setNotifyMsg(null);
     setKycModal(false);
+    setBlacklistModal(false);
+    setBlacklistReason("");
+    setCreditScore(null);
+    setNokAlertMsg(null);
   }
 
   useEffect(() => { loadAccounts(); }, []);
@@ -289,9 +347,9 @@ export default function PortalClientsPage() {
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {[
-          { label: "Total Accounts",  value: accounts.length,                                      color: "text-indigo-400" },
-          { label: "Active",          value: accounts.filter(a => a.status === "ACTIVE").length,    color: "text-emerald-400" },
-          { label: "Suspended",       value: accounts.filter(a => a.status === "SUSPENDED").length, color: "text-amber-400" },
+          { label: "Total Accounts",  value: accounts.length,                                        color: "text-indigo-400" },
+          { label: "Active",          value: accounts.filter(a => a.status === "ACTIVE").length,      color: "text-emerald-400" },
+          { label: "Blacklisted",     value: accounts.filter(a => a.status === "BLACKLISTED").length, color: "text-red-400" },
           { label: "Pending KYC",     value: accounts.filter(a => a.kycStatus !== "VERIFIED").length, color: "text-blue-400" },
         ].map(s => (
           <div key={s.label} className="philix-card p-4 text-center">
@@ -422,10 +480,15 @@ export default function PortalClientsPage() {
                       <ShieldOff size={12} /> Deactivate
                     </button>
                   )}
-                  {selected.status !== "BLACKLISTED" && (
-                    <button onClick={() => changeStatus("BLACKLISTED")} disabled={statusLoading}
-                      className="flex items-center gap-1 text-xs font-semibold text-red-400 bg-red-900/20 border border-red-800/40 px-2.5 py-1.5 rounded-lg hover:bg-red-900/40 transition-all disabled:opacity-50">
+                  {!(selected as any).isBlacklisted ? (
+                    <button onClick={() => setBlacklistModal(true)}
+                      className="flex items-center gap-1 text-xs font-semibold text-red-400 bg-red-900/20 border border-red-800/40 px-2.5 py-1.5 rounded-lg hover:bg-red-900/40 transition-all">
                       <ShieldAlert size={12} /> Blacklist
+                    </button>
+                  ) : (
+                    <button onClick={() => toggleBlacklist(false)} disabled={blacklistLoading}
+                      className="flex items-center gap-1 text-xs font-semibold text-emerald-400 bg-emerald-900/20 border border-emerald-800/40 px-2.5 py-1.5 rounded-lg hover:bg-emerald-900/40 transition-all disabled:opacity-50">
+                      <ShieldCheck size={12} /> Remove Blacklist
                     </button>
                   )}
                   {isLocked(selected) && (
@@ -741,6 +804,134 @@ export default function PortalClientsPage() {
                             ))}
                           </tbody>
                         </table>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* ── Blacklist modal ── */}
+                {blacklistModal && (
+                  <div className="bg-rose-950/40 border border-rose-800/50 rounded-xl p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="text-sm font-bold text-rose-300 flex items-center gap-1.5"><ShieldAlert size={14} /> Blacklist {selected.firstName} {selected.lastName}</div>
+                      <button onClick={() => setBlacklistModal(false)} className="text-slate-500 hover:text-slate-300"><X size={14} /></button>
+                    </div>
+                    <div className="text-xs text-slate-400">This will permanently block them from applying for new loans across all branches.</div>
+                    <div>
+                      <div className="text-[10px] text-slate-500 mb-1">Reason Code *</div>
+                      <select
+                        value={blacklistReason}
+                        onChange={e => setBlacklistReason(e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-rose-500"
+                      >
+                        <option value="">— Select reason —</option>
+                        <option value="FRAUD">Fraudulent application</option>
+                        <option value="DEFAULT">Persistent loan default</option>
+                        <option value="IDENTITY_THEFT">Identity theft / impersonation</option>
+                        <option value="COLLATERAL_DAMAGE">Damaged/destroyed collateral</option>
+                        <option value="CRIMINAL_RECORD">Criminal record identified</option>
+                        <option value="MULTIPLE_IDENTITIES">Multiple identity documents</option>
+                        <option value="BAD_REFERENCES">All references invalid</option>
+                        <option value="OTHER">Other — see notes</option>
+                      </select>
+                    </div>
+                    <div className="flex gap-2">
+                      <button onClick={() => toggleBlacklist(true)} disabled={blacklistLoading || !blacklistReason}
+                        className="bg-rose-700 hover:bg-rose-600 text-white text-xs font-bold px-4 py-2 rounded-lg disabled:opacity-50 transition-all">
+                        {blacklistLoading ? "Processing…" : "Confirm Blacklist"}
+                      </button>
+                      <button onClick={() => setBlacklistModal(false)} className="btn-secondary text-xs py-2 px-3">Cancel</button>
+                    </div>
+                  </div>
+                )}
+
+                {/* ── Blacklist Status Banner ── */}
+                {(selected as any).isBlacklisted && (
+                  <div className="bg-rose-950/40 border border-rose-800/50 rounded-xl p-4">
+                    <div className="flex items-center gap-2 text-rose-300 font-bold text-sm mb-2"><ShieldAlert size={15} /> Blacklisted Account</div>
+                    <div className="grid grid-cols-2 gap-3 text-xs">
+                      <div><div className="text-slate-500">Reason</div><div className="text-rose-300 font-semibold">{(selected as any).blacklistReason?.replace(/_/g," ") ?? "—"}</div></div>
+                      <div><div className="text-slate-500">Blacklisted By</div><div className="text-slate-300">{(selected as any).blacklistedBy ?? "—"}</div></div>
+                      <div><div className="text-slate-500">Date</div><div className="text-slate-300">{(selected as any).blacklistedAt ? new Date((selected as any).blacklistedAt).toLocaleDateString() : "—"}</div></div>
+                    </div>
+                  </div>
+                )}
+
+                {/* ── Credit Score ── */}
+                <div className="philix-card overflow-hidden border border-blue-800/30">
+                  <button className="w-full flex items-center justify-between px-4 py-3 bg-blue-900/10" onClick={() => { toggleSection("credit"); if (expandedSection !== "credit") loadCreditScore(); }}>
+                    <div className="flex items-center gap-2 font-semibold text-blue-300 text-sm">
+                      💳 Credit Score
+                      {(selected as any).creditScore != null && expandedSection !== "credit" && (
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ml-1 ${(selected as any).creditScore >= 80 ? "bg-emerald-900/40 text-emerald-300 border-emerald-800/50" : (selected as any).creditScore >= 65 ? "bg-blue-900/40 text-blue-300 border-blue-800/50" : (selected as any).creditScore >= 50 ? "bg-amber-900/40 text-amber-300 border-amber-800/50" : "bg-red-900/40 text-red-300 border-red-800/50"}`}>{(selected as any).creditScore}/100</span>
+                      )}
+                    </div>
+                    {expandedSection === "credit" ? <ChevronUp size={14} className="text-slate-500" /> : <ChevronDown size={14} className="text-slate-500" />}
+                  </button>
+                  {expandedSection === "credit" && (
+                    <div className="px-4 py-4 border-t border-blue-800/20 space-y-3">
+                      {creditScoreLoading ? (
+                        <div className="text-center text-slate-500 text-sm py-4">Computing credit score…</div>
+                      ) : creditScore ? (
+                        <>
+                          <div className="flex items-center gap-5">
+                            <div className="relative w-20 h-20">
+                              <svg viewBox="0 0 36 36" className="w-20 h-20 -rotate-90">
+                                <circle cx="18" cy="18" r="15.9" fill="none" stroke="#1e293b" strokeWidth="3"/>
+                                <circle cx="18" cy="18" r="15.9" fill="none"
+                                  stroke={creditScore.score >= 80 ? "#34d399" : creditScore.score >= 65 ? "#60a5fa" : creditScore.score >= 50 ? "#fbbf24" : "#f87171"}
+                                  strokeWidth="3"
+                                  strokeDasharray={`${creditScore.score} ${100 - creditScore.score}`}
+                                  strokeLinecap="round"/>
+                              </svg>
+                              <div className="absolute inset-0 flex flex-col items-center justify-center">
+                                <div className={`text-lg font-black ${creditScore.score >= 80 ? "text-emerald-400" : creditScore.score >= 65 ? "text-blue-400" : creditScore.score >= 50 ? "text-amber-400" : "text-red-400"}`}>{creditScore.score}</div>
+                                <div className="text-[9px] text-slate-500">/ 100</div>
+                              </div>
+                            </div>
+                            <div>
+                              <div className={`text-sm font-bold ${creditScore.score >= 80 ? "text-emerald-400" : creditScore.score >= 65 ? "text-blue-400" : creditScore.score >= 50 ? "text-amber-400" : "text-red-400"}`}>Grade {creditScore.grade} — {creditScore.band}</div>
+                              <div className="text-xs text-slate-500 mt-1">{creditScore.disbursed} disbursed · {creditScore.rejected} rejected · {creditScore.total} total loans</div>
+                              <button onClick={loadCreditScore} className="text-xs text-blue-400 hover:text-blue-300 mt-1.5">Recalculate</button>
+                            </div>
+                          </div>
+                        </>
+                      ) : (
+                        <div className="text-center text-slate-500 text-sm py-4">
+                          <button onClick={loadCreditScore} className="text-blue-400 hover:text-blue-300 font-semibold">Compute Credit Score</button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* ── Next of Kin ── */}
+                <div className="philix-card overflow-hidden border border-slate-700/50">
+                  <button className="w-full flex items-center justify-between px-4 py-3" onClick={() => toggleSection("nok")}>
+                    <div className="flex items-center gap-2 font-semibold text-slate-300 text-sm">🆘 Next of Kin / Emergency Contact</div>
+                    {expandedSection === "nok" ? <ChevronUp size={14} className="text-slate-500" /> : <ChevronDown size={14} className="text-slate-500" />}
+                  </button>
+                  {expandedSection === "nok" && (
+                    <div className="px-4 py-4 border-t border-slate-800 space-y-3">
+                      {!(selected as any).nextOfKinPhone ? (
+                        <div className="text-sm text-slate-500 text-center py-2">No next of kin on file — client must add via Profile page</div>
+                      ) : (
+                        <>
+                          <div className="grid grid-cols-3 gap-3 text-xs">
+                            <div><div className="text-slate-500">Name</div><div className="text-slate-300 font-semibold">{(selected as any).nextOfKinName}</div></div>
+                            <div><div className="text-slate-500">Phone</div><div className="text-slate-300 font-mono">{(selected as any).nextOfKinPhone}</div></div>
+                            <div><div className="text-slate-500">Relation</div><div className="text-slate-300">{(selected as any).nextOfKinRelation ?? "—"}</div></div>
+                          </div>
+                          <button onClick={sendNokAlert} disabled={nokAlertLoading}
+                            className="flex items-center gap-2 text-xs font-semibold text-orange-400 bg-orange-900/20 border border-orange-800/40 px-3 py-2 rounded-xl hover:bg-orange-900/30 transition-all disabled:opacity-50">
+                            {nokAlertLoading ? "Sending…" : "📱 Send NOK Alert (Overdue Notification)"}
+                          </button>
+                          {nokAlertMsg && (
+                            <div className={`text-xs px-3 py-2 rounded-lg ${nokAlertMsg.ok ? "text-emerald-400 bg-emerald-900/20 border border-emerald-800/40" : "text-red-400 bg-red-900/20"}`}>
+                              {nokAlertMsg.text}
+                            </div>
+                          )}
+                        </>
                       )}
                     </div>
                   )}

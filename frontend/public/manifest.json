@@ -1,0 +1,23 @@
+{
+  "name": "Philix Finance",
+  "short_name": "Philix",
+  "description": "Philix Finance — Creating A Future Together. Apply for loans, track repayments, and manage your account.",
+  "start_url": "/portal",
+  "display": "standalone",
+  "background_color": "#020617",
+  "theme_color": "#0B1F3A",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/logo-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["finance", "business"],
+  "lang": "en",
+  "dir": "ltr",
+  "scope": "/",
+  "prefer_related_applications": false
+}

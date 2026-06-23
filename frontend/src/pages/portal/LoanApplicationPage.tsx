@@ -80,12 +80,16 @@ export default function LoanApplicationPage() {
     productId: "", rateId: "", amount: "",
     // Step 1: Loan Details
     purpose: "", description: "",
-    // Step 2: Personal & Employment
-    nrcNumber: "", physicalAddress: "",
-    employmentType: "", employer: "", employerAddress: "", employerPhone: "",
+    // Step 2: Personal & Employment — pre-filled from profile
+    nrcNumber: (client as any).nrcNumber || "",
+    physicalAddress: (client as any).address || "",
+    employmentType: "",
+    employer: (client as any).employer || "",
+    employerAddress: "", employerPhone: "",
     department: "", payrollNumber: "", yearsInService: "",
-    monthlyIncome: "", netSalaryAvailable: "", existingLoanDeductions: "", payDate: "",
-    occupation: "",
+    monthlyIncome: (client as any).monthlyIncome ? String((client as any).monthlyIncome) : "",
+    netSalaryAvailable: "", existingLoanDeductions: "", payDate: "",
+    occupation: (client as any).occupation || "",
     studentInstitution: "", studentSponsor: "", studentGradYear: "",
     // Step 3: Collateral
     collateralType: "", collateralDescription: "", collateralValue: "",

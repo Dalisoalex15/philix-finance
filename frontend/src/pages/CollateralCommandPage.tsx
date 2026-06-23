@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  TrendingUp, AlertTriangle, CheckCircle, XCircle, RefreshCw,
+  TrendingUp, AlertTriangle, CheckCircle, XCircle, RefreshCw, TrendingDown, Bell,
 } from "lucide-react";
 import { useLoanApplicationStore, type LoanApplication } from "../store/loanApplicationStore";
 import { formatKwacha, formatDate } from "../lib/mock-data";
@@ -79,6 +79,29 @@ export default function CollateralCommandPage() {
     return map;
   }, [withCollateral]);
 
+  // Market value alerts: categories that lose value quickly
+  const HIGH_DEPRECIATION_CATEGORIES = [
+    "Smartphone", "Tablet", "Laptop / Computer", "Desktop Computer", "Gaming Console",
+    "Television (Smart TV)", "Other Electronic Device",
+  ];
+  const ANNUAL_DEPRECIATION: Record<string, number> = {
+    "Smartphone": 35, "Tablet": 30, "Laptop / Computer": 25, "Desktop Computer": 20,
+    "Gaming Console": 20, "Television (Smart TV": 20, "Other Electronic Device": 25,
+  };
+  const marketAlerts = useMemo(() => {
+    return withCollateral
+      .filter(a => a.status === "DISBURSED" && a.collateralType && HIGH_DEPRECIATION_CATEGORIES.some(c => (a.collateralType ?? "").includes(c.split(" ")[0])))
+      .map(a => {
+        const cat = a.collateralType ?? "";
+        const depRate = Object.entries(ANNUAL_DEPRECIATION).find(([k]) => cat.includes(k))?.[1] ?? 25;
+        const loanAgeMonths = a.reviewedAt ? Math.floor((Date.now() - new Date(a.reviewedAt).getTime()) / (30 * 86400000)) : 0;
+        const currentValue = Math.round((a.marketValue ?? a.collateralValue ?? 0) * Math.pow(1 - depRate / 100, loanAgeMonths / 12));
+        const coverageNow = a.amount > 0 ? currentValue / a.amount : 0;
+        return { ...a, currentValue, coverageNow, depRate, loanAgeMonths };
+      })
+      .filter(a => a.coverageNow < 1.2); // Flag when collateral covers less than 120% of loan
+  }, [withCollateral]);
+
   const filtered = useMemo(() => {
     let list = riskFilter === "ALL"
       ? withCollateral
@@ -148,6 +171,32 @@ export default function CollateralCommandPage() {
           </div>
         )}
       </div>
+
+      {/* Market Value Alerts */}
+      {marketAlerts.length > 0 && (
+        <div className="bg-amber-900/20 border border-amber-700/40 rounded-xl p-4">
+          <div className="flex items-center gap-2 text-amber-400 font-bold text-sm mb-3">
+            <TrendingDown size={15} /> Market Value Alerts — {marketAlerts.length} Loan{marketAlerts.length !== 1 ? "s" : ""} Flagged
+          </div>
+          <div className="text-xs text-amber-300/70 mb-3">These disbursed loans have collateral in high-depreciation categories. Current estimated value may be below safe coverage threshold.</div>
+          <div className="space-y-2">
+            {marketAlerts.slice(0, 5).map(a => (
+              <div key={a.id} className="bg-slate-900/60 border border-amber-800/30 rounded-xl px-4 py-3 flex items-center justify-between gap-3">
+                <div>
+                  <div className="text-xs font-semibold text-slate-200">{a.clientName}</div>
+                  <div className="text-[10px] text-slate-500">{a.collateralType} · Loaned {K(a.amount)}</div>
+                </div>
+                <div className="text-right">
+                  <div className="text-xs font-bold text-amber-400">Est. Value: {K(a.currentValue)}</div>
+                  <div className={`text-[10px] font-semibold ${a.coverageNow < 0.8 ? "text-red-400" : "text-amber-400"}`}>
+                    Coverage: {(a.coverageNow * 100).toFixed(0)}% {a.coverageNow < 0.8 ? "⚠️ BELOW LOAN" : ""}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Risk Category Summary */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-2">

@@ -568,4 +568,393 @@ router.get("/broadcasts", wrap(async (_req: Request, res: Response) => {
   res.json(rows);
 }));
 
+// ── BLACKLIST ─────────────────────────────────────────────────────────────────
+
+// POST /api/admin/portal-accounts/:id/blacklist — blacklist or unblacklist a client
+router.post("/portal-accounts/:id/blacklist", wrap(async (req: Request, res: Response) => {
+  const user = (req as any).user;
+  const { blacklist, reason } = req.body as { blacklist: boolean; reason?: string };
+
+  if (blacklist && !reason) {
+    return res.status(400).json({ error: "reason required when blacklisting" });
+  }
+
+  const updated = await prisma.clientPortalAccount.update({
+    where: { id: req.params.id },
+    data: {
+      isBlacklisted: blacklist,
+      blacklistReason: blacklist ? reason : null,
+      blacklistedAt: blacklist ? new Date() : null,
+      blacklistedBy: blacklist ? `${user.firstName} ${user.lastName}` : null,
+      status: blacklist ? "BLACKLISTED" : "ACTIVE",
+    },
+    select: { id: true, isBlacklisted: true, blacklistReason: true, status: true },
+  });
+
+  if (blacklist) {
+    await prisma.clientNotification.create({
+      data: {
+        accountId: req.params.id,
+        subject: "Account Access Restricted",
+        body: `Your account has been restricted from applying for new loans. Reason: ${reason}. Contact us at info@philixfinance.com for assistance.`,
+        category: "ACCOUNT",
+      },
+    }).catch(() => {});
+  }
+
+  res.json(updated);
+}));
+
+// ── CREDIT SCORE ──────────────────────────────────────────────────────────────
+
+// GET /api/admin/portal-accounts/:id/credit-score — compute & return credit score
+router.get("/portal-accounts/:id/credit-score", wrap(async (req: Request, res: Response) => {
+  const account = await prisma.clientPortalAccount.findUnique({
+    where: { id: req.params.id },
+    include: {
+      portalLoans: {
+        select: { status: true, amountRequested: true, termMonths: true, createdAt: true, reviewedAt: true },
+        orderBy: { createdAt: "desc" },
+      },
+    },
+  });
+  if (!account) return res.status(404).json({ error: "Account not found" });
+
+  const loans = (account as any).portalLoans ?? [];
+  const disbursed = loans.filter((l: any) => l.status === "DISBURSED").length;
+  const rejected  = loans.filter((l: any) => l.status === "REJECTED").length;
+  const total     = loans.length;
+  const accountAgeMonths = Math.floor((Date.now() - new Date((account as any).createdAt).getTime()) / (30 * 86400000));
+
+  let score = 40; // Base score for having an account
+  score += Math.min(25, disbursed * 8);          // Repayment history (up to 25)
+  score -= Math.min(30, rejected * 10);          // Rejections (penalty)
+  if ((account as any).kycStatus === "VERIFIED") score += 10;
+  if ((account as any).nrcNumber) score += 5;
+  if ((account as any).monthlyIncome && (account as any).monthlyIncome > 0) score += 8;
+  if ((account as any).employer) score += 5;
+  score += Math.min(7, accountAgeMonths);        // Account age (up to 7)
+  if ((account as any).isBlacklisted) score = Math.max(0, score - 50);
+
+  score = Math.min(100, Math.max(0, score));
+
+  const grade = score >= 80 ? "A" : score >= 65 ? "B" : score >= 50 ? "C" : score >= 35 ? "D" : "F";
+  const band = score >= 80 ? "Excellent" : score >= 65 ? "Good" : score >= 50 ? "Fair" : score >= 35 ? "Poor" : "Very Poor";
+  const color = score >= 80 ? "emerald" : score >= 65 ? "blue" : score >= 50 ? "amber" : score >= 35 ? "orange" : "red";
+
+  await prisma.clientPortalAccount.update({
+    where: { id: req.params.id },
+    data: { creditScore: score, creditScoreUpdatedAt: new Date() },
+  });
+
+  res.json({ score, grade, band, color, total, disbursed, rejected, accountAgeMonths });
+}));
+
+// ── NEXT OF KIN ALERT ─────────────────────────────────────────────────────────
+
+// POST /api/admin/portal-accounts/:id/nok-alert — trigger NOK emergency SMS alert
+router.post("/portal-accounts/:id/nok-alert", wrap(async (req: Request, res: Response) => {
+  const user = (req as any).user;
+  const account = await prisma.clientPortalAccount.findUnique({
+    where: { id: req.params.id },
+    select: {
+      id: true, firstName: true, lastName: true, clientNumber: true,
+      nextOfKinName: true, nextOfKinPhone: true, nextOfKinRelation: true,
+      portalLoans: {
+        where: { status: "DISBURSED" },
+        select: { reference: true, amountRequested: true },
+        take: 1,
+        orderBy: { createdAt: "desc" },
+      },
+    } as any,
+  });
+  if (!account) return res.status(404).json({ error: "Account not found" });
+  const acc = account as any;
+  if (!acc.nextOfKinPhone) return res.status(400).json({ error: "No next of kin phone on file" });
+
+  const loan = acc.portalLoans?.[0];
+  const message = `Dear ${acc.nextOfKinName || "Sir/Madam"}, this is Philix Finance. Your ${acc.nextOfKinRelation || "family member"} ${acc.firstName} ${acc.lastName} (${acc.clientNumber}) has an overdue loan of K${loan?.amountRequested?.toLocaleString() ?? "unknown"}. Please advise them to contact us urgently at +260-XXX-XXXXXX. Reference: ${loan?.reference ?? "N/A"}.`;
+
+  // Log the alert — in production wire this to an SMS gateway (e.g. Airtel API, SMS247.net)
+  console.log(`[NOK ALERT] To: ${acc.nextOfKinPhone} | Message: ${message}`);
+  await prisma.clientNotification.create({
+    data: {
+      accountId: req.params.id,
+      subject: "⚠️ NOK Alert Sent",
+      body: `An emergency alert was sent to your next of kin (${acc.nextOfKinName}, ${acc.nextOfKinPhone}) by ${user.firstName} ${user.lastName}.`,
+      category: "ALERT",
+    },
+  }).catch(() => {});
+
+  res.json({
+    success: true,
+    sentTo: acc.nextOfKinPhone,
+    name: acc.nextOfKinName,
+    relation: acc.nextOfKinRelation,
+    message,
+  });
+}));
+
+// ── BRANCH LEADERBOARD ────────────────────────────────────────────────────────
+
+// GET /api/admin/stats/branch-leaderboard — branch performance comparison
+router.get("/stats/branch-leaderboard", wrap(async (_req: Request, res: Response) => {
+  const BRANCHES = ["UNZA", "CBU", "UNILUS"];
+
+  // Get all staff users (loan officers) with their branch and review activity
+  const [staffUsers, allLoans] = await Promise.all([
+    prisma.user.findMany({
+      select: { id: true, firstName: true, lastName: true, branchId: true, role: true },
+      where: { status: "ACTIVE" },
+    }),
+    prisma.portalLoanApplication.findMany({
+      select: {
+        status: true, amountRequested: true, reviewedBy: true, createdAt: true,
+        paymentSubmissions: {
+          where: { status: "APPROVED" },
+          select: { amount: true },
+        },
+      },
+    } as any),
+  ]);
+
+  // Map staff to branches
+  const staffByBranch: Record<string, typeof staffUsers> = {};
+  for (const b of BRANCHES) staffByBranch[b] = [];
+  staffByBranch["OTHER"] = [];
+  for (const s of staffUsers) {
+    const b = s.branchId ?? "OTHER";
+    if (!(b in staffByBranch)) staffByBranch[b] = [];
+    staffByBranch[b].push(s);
+  }
+
+  // Compute metrics per branch
+  const leaderboard = BRANCHES.map(branch => {
+    const officers = staffByBranch[branch] ?? [];
+    const officerIds = officers.map((o: { id: string }) => o.id);
+
+    const branchLoans = (allLoans as any[]).filter(l => officerIds.includes(l.reviewedBy));
+    const disbursed = branchLoans.filter(l => l.status === "DISBURSED");
+    const active = branchLoans.filter(l => ["SUBMITTED", "UNDER_REVIEW", "APPROVED", "DISBURSED"].includes(l.status));
+
+    const totalDisbursed = disbursed.reduce((s: number, l: any) => s + l.amountRequested, 0);
+    const totalCollected = (allLoans as any[]).reduce((s: number, l: any) => {
+      return s + (l.paymentSubmissions ?? []).reduce((ps: number, p: any) => ps + (p.amount ?? 0), 0);
+    }, 0);
+    const collectionRate = totalDisbursed > 0 ? Math.round((totalCollected / totalDisbursed) * 100) : 0;
+
+    // PAR = loans with no payment submissions that are disbursed / total disbursed
+    const loansWithPayments = disbursed.filter((l: any) => (l.paymentSubmissions ?? []).length > 0).length;
+    const parRate = disbursed.length > 0 ? Math.round(((disbursed.length - loansWithPayments) / disbursed.length) * 100) : 0;
+
+    return {
+      branch,
+      officers: officers.length,
+      totalDisbursed,
+      activeLoans: active.length,
+      disbursedCount: disbursed.length,
+      collectionRate,
+      parRate,
+      score: Math.max(0, collectionRate - parRate),
+    };
+  });
+
+  leaderboard.sort((a, b) => b.score - a.score);
+  leaderboard.forEach((b, i) => (b as any).rank = i + 1);
+
+  res.json(leaderboard);
+}));
+
+// ── LOAN OFFICER TARGETS ──────────────────────────────────────────────────────
+
+// GET /api/admin/targets — get all targets (optionally filtered by month)
+router.get("/targets", wrap(async (req: Request, res: Response) => {
+  const { month } = req.query as { month?: string };
+  const currentMonth = month ?? new Date().toISOString().slice(0, 7);
+
+  const [targets, staff] = await Promise.all([
+    (prisma as any).loanOfficerTarget.findMany({
+      where: { month: currentMonth },
+      orderBy: { setAt: "desc" },
+    }),
+    prisma.user.findMany({
+      where: { status: "ACTIVE", role: { in: ["LOAN_OFFICER", "COLLECTIONS_OFFICER", "MANAGER"] } },
+      select: { id: true, firstName: true, lastName: true, role: true, branchId: true },
+    }),
+  ]);
+
+  // Compute actuals from this month's loan activity
+  const monthStart = new Date(`${currentMonth}-01`);
+  const monthEnd   = new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 1);
+
+  const monthlyLoans = await prisma.portalLoanApplication.findMany({
+    where: {
+      reviewedAt: { gte: monthStart, lt: monthEnd },
+      reviewedBy: { not: null },
+    },
+    select: { status: true, amountRequested: true, reviewedBy: true, paymentSubmissions: {
+      where: { status: "APPROVED" }, select: { amount: true },
+    } } as any,
+  });
+
+  const actuals: Record<string, { disbursed: number; collected: number; loans: number }> = {};
+  for (const loan of monthlyLoans as any[]) {
+    const oid = loan.reviewedBy;
+    if (!oid) continue;
+    if (!actuals[oid]) actuals[oid] = { disbursed: 0, collected: 0, loans: 0 };
+    if (loan.status === "DISBURSED") {
+      actuals[oid].disbursed += loan.amountRequested;
+      actuals[oid].loans += 1;
+    }
+    actuals[oid].collected += (loan.paymentSubmissions ?? []).reduce((s: number, p: any) => s + (p.amount ?? 0), 0);
+  }
+
+  const result = staff.map((s: { id: string; firstName: string; lastName: string; role: string; branchId: string | null }) => {
+    const target = targets.find((t: any) => t.userId === s.id);
+    const actual = actuals[s.id] ?? { disbursed: 0, collected: 0, loans: 0 };
+    return {
+      userId: s.id,
+      name: `${s.firstName} ${s.lastName}`,
+      role: s.role,
+      branchId: s.branchId,
+      month: currentMonth,
+      disbursementTarget: target?.disbursementTarget ?? 0,
+      collectionTarget: target?.collectionTarget ?? 0,
+      loansTarget: target?.loansTarget ?? 0,
+      disbursementActual: actual.disbursed,
+      collectionActual: actual.collected,
+      loansActual: actual.loans,
+      disbursementPct: target?.disbursementTarget > 0 ? Math.round((actual.disbursed / target.disbursementTarget) * 100) : 0,
+      collectionPct: target?.collectionTarget > 0 ? Math.round((actual.collected / target.collectionTarget) * 100) : 0,
+      loansPct: target?.loansTarget > 0 ? Math.round((actual.loans / target.loansTarget) * 100) : 0,
+      targetId: target?.id ?? null,
+    };
+  });
+
+  res.json({ month: currentMonth, officers: result });
+}));
+
+// POST /api/admin/targets — create or update a target for an officer
+router.post("/targets", wrap(async (req: Request, res: Response) => {
+  const user = (req as any).user;
+  if (!["SUPER_ADMIN", "MANAGER"].includes(user.role)) {
+    return res.status(403).json({ error: "Only CEO or Manager can set targets" });
+  }
+  const { userId, month, disbursementTarget, collectionTarget, loansTarget } = req.body as {
+    userId: string; month: string; disbursementTarget: number; collectionTarget: number; loansTarget: number;
+  };
+  if (!userId || !month) return res.status(400).json({ error: "userId and month required" });
+
+  const target = await (prisma as any).loanOfficerTarget.upsert({
+    where: { userId_month: { userId, month } },
+    update: { disbursementTarget, collectionTarget, loansTarget, setBy: `${user.firstName} ${user.lastName}`, updatedAt: new Date() },
+    create: { userId, month, disbursementTarget, collectionTarget, loansTarget, setBy: `${user.firstName} ${user.lastName}` },
+  });
+
+  res.json(target);
+}));
+
+// ── REFERRAL DASHBOARD ────────────────────────────────────────────────────────
+
+// GET /api/admin/referrals — referral programme stats
+router.get("/referrals", wrap(async (_req: Request, res: Response) => {
+  const accounts = await prisma.clientPortalAccount.findMany({
+    select: {
+      id: true, firstName: true, lastName: true, clientNumber: true,
+      referredByCode: true, referralCode: true, referralCount: true,
+      createdAt: true,
+    },
+  });
+
+  // Build referral map: code → referrer
+  const codeToReferrer: Record<string, (typeof accounts)[number]> = {};
+  for (const acc of accounts) {
+    if (acc.referralCode) codeToReferrer[acc.referralCode] = acc;
+    // Fallback: derive code from client number (same formula as existing logic)
+    const suffix = acc.clientNumber.replace(/\D/g, "").slice(-5);
+    const derived = `PHX-${suffix || acc.clientNumber.slice(-5).toUpperCase()}`;
+    if (!codeToReferrer[derived]) codeToReferrer[derived] = acc;
+  }
+
+  // Build referral chains
+  const referralChains: { referrer: string; referrerId: string; referredName: string; referredId: string; joinedAt: string }[] = [];
+  for (const acc of accounts) {
+    if (acc.referredByCode) {
+      const referrer = codeToReferrer[acc.referredByCode];
+      if (referrer && referrer.id !== acc.id) {
+        referralChains.push({
+          referrer: `${referrer.firstName} ${referrer.lastName}`,
+          referrerId: referrer.id,
+          referredName: `${acc.firstName} ${acc.lastName}`,
+          referredId: acc.id,
+          joinedAt: acc.createdAt.toISOString(),
+        });
+      }
+    }
+  }
+
+  // Top referrers
+  const referrerCounts: Record<string, { id: string; name: string; count: number }> = {};
+  for (const chain of referralChains) {
+    if (!referrerCounts[chain.referrerId]) {
+      referrerCounts[chain.referrerId] = { id: chain.referrerId, name: chain.referrer, count: 0 };
+    }
+    referrerCounts[chain.referrerId].count++;
+  }
+  const topReferrers = Object.values(referrerCounts)
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 20)
+    .map((r, i) => ({ rank: i + 1, ...r }));
+
+  res.json({
+    totalReferrals: referralChains.length,
+    uniqueReferrers: topReferrers.length,
+    chains: referralChains.slice(0, 100),
+    topReferrers,
+  });
+}));
+
+// ── MONTHLY STATEMENT EMAIL ───────────────────────────────────────────────────
+
+// POST /api/admin/send-statements — send monthly statements to all active clients
+router.post("/send-statements", wrap(async (req: Request, res: Response) => {
+  const user = (req as any).user;
+  if (!["SUPER_ADMIN", "MANAGER", "ACCOUNTANT"].includes(user.role)) {
+    return res.status(403).json({ error: "Insufficient permission" });
+  }
+  const { month } = req.body as { month?: string };
+  const stmtMonth = month ?? new Date().toISOString().slice(0, 7);
+  const [year, mo] = stmtMonth.split("-").map(Number);
+  const monthName = new Date(year, mo - 1, 1).toLocaleString("default", { month: "long", year: "numeric" });
+
+  const accounts = await prisma.clientPortalAccount.findMany({
+    where: { status: "ACTIVE" },
+    include: {
+      portalLoans: {
+        where: { status: "DISBURSED" },
+        select: { reference: true, amountRequested: true, termMonths: true, interestRate: true, productType: true },
+        take: 5,
+      },
+    },
+  });
+
+  let sent = 0;
+  for (const acc of accounts) {
+    const acc2 = acc as any;
+    if (!acc2.portalLoans?.length) continue;
+    // Create in-app notification as the statement delivery mechanism
+    await prisma.clientNotification.create({
+      data: {
+        accountId: acc.id,
+        subject: `📄 Your Philix Finance Statement — ${monthName}`,
+        body: `Dear ${acc.firstName},\n\nYour monthly account statement for ${monthName} is ready. You currently have ${acc2.portalLoans.length} active loan(s) totalling K${acc2.portalLoans.reduce((s: number, l: any) => s + l.amountRequested, 0).toLocaleString()}.\n\nLog in to your portal at philixfinance.zm to view full details, payment history, and download your statement.\n\nThank you for banking with Philix Finance.`,
+        category: "STATEMENT",
+      },
+    });
+    sent++;
+  }
+
+  res.json({ success: true, sent, month: stmtMonth });
+}));
+
 export default router;

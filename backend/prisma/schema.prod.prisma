@@ -97,10 +97,22 @@ model ClientPortalAccount {
   lastLoginAt       DateTime?
   emailVerified     Boolean  @default(false)
   referredByCode    String?
+  referralCode      String?  @unique
+  referralCount     Int      @default(0)
+  lastLoginIp       String?
   isTrustedClient   Boolean  @default(false)
   trustScore        Int?
   trustGrantedAt    DateTime?
   trustGrantedBy    String?
+  creditScore       Int?
+  creditScoreUpdatedAt DateTime?
+  isBlacklisted     Boolean  @default(false)
+  blacklistReason   String?
+  blacklistedAt     DateTime?
+  blacklistedBy     String?
+  nextOfKinName     String?
+  nextOfKinPhone    String?
+  nextOfKinRelation String?
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
@@ -222,6 +234,24 @@ model KycDocument {
   fileName   String
   mimeType   String   @default("image/jpeg")
   uploadedAt DateTime @default(now())
+}
+
+// ============================================================
+// LOAN OFFICER TARGETS
+// ============================================================
+
+model LoanOfficerTarget {
+  id                  String   @id @default(uuid())
+  userId              String
+  month               String
+  disbursementTarget  Float    @default(0)
+  collectionTarget    Float    @default(0)
+  loansTarget         Int      @default(0)
+  setBy               String
+  setAt               DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@unique([userId, month])
 }
 
 // ============================================================

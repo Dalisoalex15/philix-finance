@@ -99,11 +99,22 @@ model ClientPortalAccount {
   lastLoginAt       DateTime?
   emailVerified     Boolean  @default(false)
   referredByCode    String?  // referral code this account used at registration
+  referralCode      String?  @unique // this client's own shareable code
+  referralCount     Int      @default(0)
   lastLoginIp       String?
   isTrustedClient   Boolean  @default(false)
   trustScore        Int?      // 0-100 computed trust score
   trustGrantedAt    DateTime?
   trustGrantedBy    String?
+  creditScore       Int?      // 0-100 repayment-based credit score
+  creditScoreUpdatedAt DateTime?
+  isBlacklisted     Boolean  @default(false)
+  blacklistReason   String?
+  blacklistedAt     DateTime?
+  blacklistedBy     String?
+  nextOfKinName     String?
+  nextOfKinPhone    String?
+  nextOfKinRelation String?
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
@@ -229,6 +240,24 @@ model KycDocument {
   uploadedAt DateTime @default(now())
 }
 
+
+// ============================================================
+// LOAN OFFICER TARGETS
+// ============================================================
+
+model LoanOfficerTarget {
+  id                  String   @id @default(uuid())
+  userId              String
+  month               String   // YYYY-MM format
+  disbursementTarget  Float    @default(0)
+  collectionTarget    Float    @default(0)
+  loansTarget         Int      @default(0)
+  setBy               String
+  setAt               DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@unique([userId, month])
+}
 
 // ============================================================
 // CAPITAL & FUNDING
