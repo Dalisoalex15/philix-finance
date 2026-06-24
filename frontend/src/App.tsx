@@ -22,6 +22,8 @@ import SupportPage from "./pages/portal/SupportPage";
 import EligibilityPage from "./pages/portal/EligibilityPage";
 import CreditScorePage from "./pages/portal/CreditScorePage";
 import EmailComposerPage from "./pages/EmailComposerPage";
+import EmailManagementPage from "./pages/EmailManagementPage";
+import OtpVerificationPage from "./pages/portal/OtpVerificationPage";
 import DashboardPage from "./pages/DashboardPage";
 import CEODashboardPage from "./pages/CEODashboardPage";
 import PhilixAIPage from "./pages/PhilixAIPage";
@@ -168,6 +170,7 @@ export default function App() {
         <Route path="/staff/register" element={<StaffRegisterPage />} />
         <Route path="/staff" element={<Navigate to="/login" replace />} />
         <Route path="/portal/register" element={<ClientRegisterPage />} />
+        <Route path="/portal/verify-email" element={<OtpVerificationPage />} />
         <Route path="/portal" element={<RouteErrorBoundary><ClientPortalLayout /></RouteErrorBoundary>}>
           <Route index element={<Navigate to="/portal/dashboard" replace />} />
           <Route path="dashboard" element={<RouteErrorBoundary><ClientDashboardPage /></RouteErrorBoundary>} />
@@ -241,7 +244,7 @@ export default function App() {
           <Route path="meetings" element={<MeetingMinutesPage />} />
           <Route path="compliance" element={<CompliancePage />} />
           <Route path="procurement" element={<ProcurementPage />} />
-          <Route path="email-logs" element={<EmailLogsPage />} />
+          <Route path="email-logs" element={<EmailManagementPage />} />
           <Route path="import" element={<ImportPage />} />
           <Route path="export" element={<ExportCenterPage />} />
           <Route path="search" element={<GlobalSearchPage />} />

@@ -32,7 +32,11 @@ export default function UnifiedLoginPage() {
         await staffLogin(email, password);
         navigate("/");
       } else {
-        await clientLoginWithApi(email, password);
+        const result = await clientLoginWithApi(email, password);
+        if (result?.requiresVerification) {
+          navigate(`/portal/verify-email?email=${encodeURIComponent(result.email || email)}&type=EMAIL_VERIFY`);
+          return;
+        }
         navigate("/portal/dashboard");
       }
     } catch (err: unknown) {

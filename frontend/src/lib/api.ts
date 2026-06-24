@@ -253,7 +253,7 @@ export interface StaffPortalApplication {
 // ── Portal auth ──────────────────────────────────────────────────────────────
 export const portalApi = {
   register: (body: Record<string, unknown>) =>
-    request<{ accessToken: string; refreshToken: string; account: ClientAccount }>("/portal/auth/register", {
+    request<{ accessToken?: string; refreshToken?: string; account?: ClientAccount; requiresVerification?: boolean; email?: string }>("/portal/auth/register", {
       method: "POST", body: JSON.stringify(body),
     }),
 

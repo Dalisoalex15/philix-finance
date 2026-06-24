@@ -295,3 +295,64 @@ model LoanPaymentSubmission {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 }
+
+// ============================================================
+// EMAIL SYSTEM
+// ============================================================
+
+model EmailLog {
+  id          String    @id @default(uuid())
+  to          String
+  toName      String?
+  subject     String
+  template    String?
+  body        String?
+  status      String    @default("SENT")
+  resendId    String?
+  clientId    String?
+  loanId      String?
+  accountId   String?
+  triggeredBy String?
+  error       String?
+  openedAt    DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model OtpVerification {
+  id        String   @id @default(uuid())
+  email     String
+  otp       String
+  type      String
+  accountId String?
+  attempts  Int      @default(0)
+  verified  Boolean  @default(false)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
+
+model EmailTemplate {
+  id        String   @id @default(uuid())
+  slug      String   @unique
+  name      String
+  subject   String
+  htmlBody  String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model EmailCampaign {
+  id          String    @id @default(uuid())
+  name        String
+  subject     String
+  htmlBody    String
+  targetGroup String
+  status      String    @default("DRAFT")
+  sentAt      DateTime?
+  totalSent   Int       @default(0)
+  totalFailed Int       @default(0)
+  createdBy   String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}

@@ -1,6 +1,7 @@
 import { Router, Request, Response } from "express";
 import { prisma } from "../lib/prisma";
 import { authenticate } from "../middleware/auth";
+import { Mailer, sendEmail } from "../lib/mailer";
 
 type AsyncHandler = (req: Request, res: Response, next: (err?: unknown) => void) => Promise<unknown>;
 const wrap = (fn: AsyncHandler) => (req: Request, res: Response, next: (err?: unknown) => void) =>
@@ -593,6 +594,11 @@ router.patch("/payment-submissions/:id", wrap(async (req: Request, res: Response
               },
             }),
           ]);
+          // Email notification for rollover (non-blocking)
+          const acctRoll = await prisma.clientPortalAccount.findUnique({ where: { id: app.accountId }, select: { email: true, firstName: true } });
+          if (acctRoll) {
+            Mailer.loanRenewed({ email: acctRoll.email, firstName: acctRoll.firstName, oldReference: app.reference, newReference: newRef, principal: app.amountRequested, interestPaid: submission.amount ?? 0, accountId: app.accountId }).catch(() => {});
+          }
           return; // skip normal repaid/notification flow
         }
 
@@ -623,6 +629,12 @@ router.patch("/payment-submissions/:id", wrap(async (req: Request, res: Response
           : Promise.resolve();
 
         await Promise.all([notifPromise, loanUpdatePromise]);
+
+        // Payment confirmed email
+        const acctPay = await prisma.clientPortalAccount.findUnique({ where: { id: app.accountId }, select: { email: true, firstName: true } });
+        if (acctPay) {
+          Mailer.paymentConfirmed({ email: acctPay.email, firstName: acctPay.firstName, reference: app.reference, amount: thisPayment, totalPaid, remaining, accountId: app.accountId }).catch(() => {});
+        }
       }
 
       if (status === "REJECTED" && submission.application) {
@@ -635,6 +647,11 @@ router.patch("/payment-submissions/:id", wrap(async (req: Request, res: Response
             category: "PAYMENT_REJECTED",
           },
         });
+        // Payment rejected email
+        const acctRej = await prisma.clientPortalAccount.findUnique({ where: { id: app.accountId }, select: { email: true, firstName: true } });
+        if (acctRej) {
+          Mailer.paymentRejected({ email: acctRej.email, firstName: acctRej.firstName, reference: app.reference, amount: submission.amount ?? 0, reason: rejectedReason, accountId: app.accountId }).catch(() => {});
+        }
       }
     } catch (_) { /* background failure must not surface to client */ }
   });
@@ -1066,6 +1083,161 @@ router.post("/send-statements", wrap(async (req: Request, res: Response) => {
   }
 
   res.json({ success: true, sent, month: stmtMonth });
+}));
+
+// ── EMAIL MANAGEMENT ─────────────────────────────────────────────────────────
+
+// GET /api/admin/email-logs — paginated email history
+router.get("/email-logs", wrap(async (req: Request, res: Response) => {
+  const page  = Math.max(1, Number(req.query.page)  || 1);
+  const limit = Math.min(100, Number(req.query.limit) || 50);
+  const status    = req.query.status    as string | undefined;
+  const category  = req.query.category  as string | undefined;
+  const search    = req.query.search    as string | undefined;
+
+  const where: Record<string, unknown> = {};
+  if (status)   where.status   = status;
+  if (category) where.template = category;
+  if (search)   where.to = { contains: search };
+
+  const [logs, total] = await Promise.all([
+    (prisma as any).emailLog.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      skip: (page - 1) * limit,
+      take: limit,
+    }),
+    (prisma as any).emailLog.count({ where }),
+  ]);
+
+  res.json({ logs, total, page, pages: Math.ceil(total / limit) });
+}));
+
+// POST /api/admin/email-logs/:id/resend — resend a failed email
+router.post("/email-logs/:id/resend", wrap(async (req: Request, res: Response) => {
+  const log = await (prisma as any).emailLog.findUnique({ where: { id: req.params.id } });
+  if (!log) return res.status(404).json({ error: "Log not found" });
+
+  const result = await sendEmail({
+    to: log.to, toName: log.toName,
+    subject: `[Resend] ${log.subject}`,
+    body: log.body || "(no content)",
+    category: log.template,
+    portalAccountId: log.accountId,
+  });
+
+  res.json({ ok: result.ok });
+}));
+
+// GET /api/admin/email-stats — summary counters
+router.get("/email-stats", wrap(async (_req: Request, res: Response) => {
+  const since30d = new Date(Date.now() - 30 * 86400000);
+  const [total, sent, failed, last24h] = await Promise.all([
+    (prisma as any).emailLog.count(),
+    (prisma as any).emailLog.count({ where: { status: "SENT" } }),
+    (prisma as any).emailLog.count({ where: { status: "FAILED" } }),
+    (prisma as any).emailLog.count({ where: { createdAt: { gte: new Date(Date.now() - 86400000) } } }),
+  ]);
+  const byCategory = await (prisma as any).emailLog.groupBy({
+    by: ["template"],
+    _count: { id: true },
+    where: { createdAt: { gte: since30d } },
+    orderBy: { _count: { id: "desc" } },
+    take: 8,
+  });
+  res.json({ total, sent, failed, last24h, byCategory });
+}));
+
+// GET /api/admin/email-campaigns — list campaigns
+router.get("/email-campaigns", wrap(async (_req: Request, res: Response) => {
+  const campaigns = await (prisma as any).emailCampaign.findMany({
+    orderBy: { createdAt: "desc" },
+    take: 50,
+  });
+  res.json(campaigns);
+}));
+
+// POST /api/admin/email-campaigns — create and send bulk campaign
+router.post("/email-campaigns", wrap(async (req: Request, res: Response) => {
+  const user = (req as any).user;
+  const { name, subject, htmlBody, text, targetGroup } = req.body as {
+    name: string; subject: string; htmlBody?: string; text: string; targetGroup: string;
+  };
+  if (!name || !subject || !text) return res.status(400).json({ error: "name, subject, and text are required" });
+
+  const GROUPS: Record<string, Record<string, unknown>> = {
+    ALL:     {},
+    ACTIVE:  { portalLoans: { some: { status: "DISBURSED" } } },
+    REPAID:  { portalLoans: { some: { status: "REPAID" } }, NOT: { portalLoans: { some: { status: "DISBURSED" } } } },
+    PENDING: { portalLoans: { some: { status: { in: ["SUBMITTED", "UNDER_REVIEW", "APPROVED"] } } } },
+  };
+  const where = GROUPS[targetGroup] ?? {};
+
+  const accounts = await prisma.clientPortalAccount.findMany({
+    where: where as any,
+    select: { id: true, email: true, firstName: true, lastName: true },
+  });
+
+  const campaign = await (prisma as any).emailCampaign.create({
+    data: {
+      name, subject,
+      htmlBody: htmlBody || text,
+      targetGroup: targetGroup || "ALL",
+      status: "SENDING",
+      createdBy: `${user.firstName} ${user.lastName}`,
+    },
+  });
+
+  // Fire off bulk send in background
+  setImmediate(async () => {
+    const recipients = accounts.map((a: { id: string; email: string; firstName: string; lastName: string }) => ({
+      email: a.email, name: `${a.firstName} ${a.lastName}`, accountId: a.id,
+    }));
+    const { sent, failed } = await Mailer.bulk(recipients, subject, htmlBody || text, text);
+    await (prisma as any).emailCampaign.update({
+      where: { id: campaign.id },
+      data: { status: failed === recipients.length ? "FAILED" : "SENT", sentAt: new Date(), totalSent: sent, totalFailed: failed },
+    });
+  });
+
+  res.status(201).json({ ...campaign, totalRecipients: accounts.length });
+}));
+
+// GET /api/admin/email-directory — searchable client email list
+router.get("/email-directory", wrap(async (req: Request, res: Response) => {
+  const search = (req.query.search as string | undefined)?.trim();
+  const filter = (req.query.filter as string | undefined); // active | repaid | overdue
+
+  const statusMap: Record<string, Record<string, unknown>> = {
+    active:  { portalLoans: { some: { status: "DISBURSED" } } },
+    repaid:  { portalLoans: { some: { status: "REPAID" } } },
+    pending: { portalLoans: { some: { status: { in: ["SUBMITTED", "UNDER_REVIEW", "APPROVED"] } } } },
+  };
+
+  const where: Record<string, unknown> = filter && statusMap[filter] ? statusMap[filter] : {};
+  if (search) {
+    where.OR = [
+      { firstName: { contains: search } },
+      { lastName:  { contains: search } },
+      { email:     { contains: search } },
+      { clientNumber: { contains: search } },
+      { nrcNumber:    { contains: search } },
+    ];
+  }
+
+  const accounts = await prisma.clientPortalAccount.findMany({
+    where: where as any,
+    select: {
+      id: true, clientNumber: true, firstName: true, lastName: true,
+      email: true, phone: true, status: true, emailVerified: true,
+      lastLoginAt: true, createdAt: true,
+      portalLoans: { select: { status: true, amountRequested: true }, orderBy: { createdAt: "desc" }, take: 3 },
+    },
+    orderBy: { createdAt: "desc" },
+    take: 200,
+  });
+
+  res.json(accounts);
 }));
 
 export default router;

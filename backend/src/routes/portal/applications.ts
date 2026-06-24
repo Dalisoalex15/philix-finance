@@ -54,7 +54,7 @@ router.patch("/staff/:id", authenticate, wrap(async (req: Request, res: Response
     try {
       const acct = app.account;
       if (!acct) return;
-      if (status === "APPROVED" || status === "DISBURSED") {
+      if (status === "APPROVED") {
         await Mailer.loanApproved({
           email: acct.email,
           firstName: acct.firstName,
@@ -63,7 +63,17 @@ router.patch("/staff/:id", authenticate, wrap(async (req: Request, res: Response
           productType: app.productType,
           amountRequested: app.amountRequested,
           termMonths: app.termMonths,
-          createdAt: app.createdAt,
+          interestRate: app.interestRate ?? 20,
+          accountId: acct.id,
+        });
+      } else if (status === "DISBURSED") {
+        await Mailer.loanDisbursed({
+          email: acct.email,
+          firstName: acct.firstName,
+          reference: app.reference,
+          amountRequested: app.amountRequested,
+          interestRate: app.interestRate ?? 20,
+          termMonths: app.termMonths,
           accountId: acct.id,
         });
       } else if (status === "REJECTED") {

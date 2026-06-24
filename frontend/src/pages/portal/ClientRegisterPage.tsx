@@ -67,7 +67,7 @@ export default function ClientRegisterPage() {
     setApiError("");
     setEmailExists(false);
     try {
-      await registerWithApi({
+      const result = await registerWithApi({
         firstName: form.firstName,
         lastName: form.lastName,
         email: form.email,
@@ -83,6 +83,10 @@ export default function ClientRegisterPage() {
         monthlyIncome: form.monthlyIncome ? Number(form.monthlyIncome) : undefined,
         referralCode: form.referralCode.trim().toUpperCase() || undefined,
       });
+      if (result?.requiresVerification) {
+        navigate(`/portal/verify-email?email=${encodeURIComponent(result.email || form.email)}&type=EMAIL_VERIFY`);
+        return;
+      }
       setDone(true);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Registration failed. Please try again.";
