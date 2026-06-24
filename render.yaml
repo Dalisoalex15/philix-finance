@@ -4,7 +4,7 @@ services:
     runtime: node
     rootDir: backend
     buildCommand: npm install && npx prisma generate --schema=./prisma/schema.prod.prisma
-    startCommand: npx prisma db push --schema=./prisma/schema.prod.prisma --accept-data-loss && npx tsx prisma/seed.ts && npx tsx src/index.ts
+    startCommand: sh start.sh
     healthCheckPath: /health
     envVars:
       - key: NODE_ENV

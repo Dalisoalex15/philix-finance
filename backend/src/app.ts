@@ -64,6 +64,8 @@ app.use(compression());
 // ── CORS — only the known frontend domain, never a wildcard ──────────────────
 const ALLOWED_ORIGINS = [
   process.env.FRONTEND_URL,
+  "https://philixfinance.vercel.app",
+  "https://philix-finance.vercel.app",
   "http://localhost:3000",
   "http://localhost:5173",
   "http://localhost:4173",
