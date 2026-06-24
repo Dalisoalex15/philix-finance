@@ -413,6 +413,43 @@ router.post("/:appId/pay", wrap(async (req: Request, res: Response) => {
   res.status(201).json(submission);
 }));
 
+// POST /api/portal/applications/:appId/rollover — pay interest only, renew principal
+router.post("/:appId/rollover", wrap(async (req: Request, res: Response) => {
+  const accountId = (req as Request & { portalAccountId: string }).portalAccountId;
+  const app = await prisma.portalLoanApplication.findFirst({
+    where: { id: req.params.appId, accountId },
+  });
+  if (!app) throw new AppError("Application not found", 404);
+  if (app.status !== "DISBURSED") throw new AppError("Only active disbursed loans can be renewed", 400);
+
+  const interestRate  = app.interestRate ?? 20;
+  const interestAmount = Math.ceil(app.amountRequested * (interestRate / 100));
+
+  const { paymentMethod, provider, reference, screenshotData } = req.body as {
+    paymentMethod?: string; provider?: string; reference?: string; screenshotData?: string;
+  };
+
+  const submission = await (prisma as any).loanPaymentSubmission.create({
+    data: {
+      applicationId: app.id,
+      accountId,
+      amount: interestAmount,
+      paymentMethod: paymentMethod || "MOBILE_MONEY",
+      provider: provider || null,
+      reference: reference || null,
+      screenshotData: screenshotData || null,
+      notes: "LOAN_ROLLOVER",
+      status: "PENDING",
+    },
+  });
+
+  res.status(201).json({
+    submission,
+    interestAmount,
+    principalAmount: app.amountRequested,
+  });
+}));
+
 // GET /api/portal/applications/:appId/payments — client sees their submissions
 router.get("/:appId/payments", wrap(async (req: Request, res: Response) => {
   const accountId = (req as Request & { portalAccountId: string }).portalAccountId;

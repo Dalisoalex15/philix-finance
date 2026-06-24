@@ -6,7 +6,7 @@ import {
   Zap, Calculator, Home, CreditCard, Bell, User,
   ChevronRight, Quote, Sparkles, ShieldCheck, RefreshCw,
   CheckCircle2, TrendingUp, CalendarClock, Banknote, Info,
-  CalendarDays, X, CheckCircle, Wallet,
+  CalendarDays, X, CheckCircle, Wallet, RotateCcw,
 } from "lucide-react";
 import { mockLoanProducts } from "../../lib/mock-data";
 
@@ -432,6 +432,172 @@ function DashboardReloanModal({ sourceApp, token, onClose, onDone }: {
   );
 }
 
+// ── Dashboard Renew (Rollover) Modal ───────────────────────────────────────
+function DashboardRenewModal({ app, token, onClose, onDone }: {
+  app: PortalApplication; token: string | null;
+  onClose: () => void; onDone: (record: PaymentRecord) => void;
+}) {
+  const rate      = app.interestRate ?? 20;
+  const interest  = Math.ceil(app.amountRequested * (rate / 100));
+  const principal = app.amountRequested;
+
+  const [method,    setMethod]    = useState("MOBILE_MONEY");
+  const [provider,  setProvider]  = useState("Airtel Money");
+  const [reference, setReference] = useState("");
+  const [step,      setStep]      = useState<"info" | "pay" | "confirm" | "success">("info");
+  const [error,     setError]     = useState("");
+
+  const MOBILE: Record<string, string> = {
+    "Airtel Money":  "0977 158 901",
+    "MTN MoMo":      "0968 158 901",
+    "Zamtel Kwacha": "0955 158 901",
+  };
+
+  function submit() {
+    if (!reference) { setError("Enter your transaction reference"); return; }
+    const optimistic: PaymentRecord = {
+      id: `rollover-${Date.now()}`, amount: interest, status: "PENDING",
+      createdAt: new Date().toISOString(), reference,
+      provider: method === "MOBILE_MONEY" ? provider : null, paymentMethod: method,
+    };
+    setStep("success");
+    onDone(optimistic);
+    fetch(`/api/portal/applications/${app.id}/rollover`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ paymentMethod: method, provider, reference }),
+    }).catch(() => {});
+  }
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center">
+      <div className="absolute inset-0 bg-black/80" onClick={onClose} />
+      <div className="relative w-full sm:max-w-md max-h-[90vh] overflow-y-auto rounded-t-3xl sm:rounded-2xl"
+        style={{ background: "#070c18", border: "2px solid rgba(201,168,76,0.4)" }}>
+
+        <div className="flex items-center justify-between px-5 pt-5 pb-4"
+          style={{ borderBottom: "1px solid rgba(201,168,76,0.12)" }}>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center"
+              style={{ background: "#0A1F44", border: "1px solid rgba(201,168,76,0.4)" }}>
+              <RotateCcw size={18} style={{ color: "#C9A84C" }} />
+            </div>
+            <div>
+              <h3 className="font-bold text-white text-base">Renew My Loan</h3>
+              <p className="text-xs mt-0.5" style={{ color: "rgba(201,168,76,0.6)" }}>Pay interest only · keep {K(principal)}</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-1 hover:opacity-70" style={{ color: "rgba(255,255,255,0.4)" }}><X size={18} /></button>
+        </div>
+
+        <div className="p-5 space-y-4">
+          {step === "info" && (
+            <>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-xl p-4 text-center"
+                  style={{ background: "rgba(22,163,74,0.08)", border: "1px solid rgba(22,163,74,0.2)" }}>
+                  <div className="text-xs text-slate-500 mb-1">Principal (you keep)</div>
+                  <div className="text-xl font-black text-emerald-400">{K(principal)}</div>
+                </div>
+                <div className="rounded-xl p-4 text-center"
+                  style={{ background: "rgba(201,168,76,0.07)", border: "1px solid rgba(201,168,76,0.25)" }}>
+                  <div className="text-xs text-slate-500 mb-1">Pay this now</div>
+                  <div className="text-xl font-black" style={{ color: "#C9A84C" }}>{K(interest)}</div>
+                  <div className="text-[10px] text-slate-600 mt-0.5">{rate}% interest</div>
+                </div>
+              </div>
+              <div className="rounded-xl px-4 py-3 text-xs text-slate-400"
+                style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+                Pay <span className="font-bold" style={{ color: "#C9A84C" }}>{K(interest)}</span> in interest and your <span className="font-bold text-white">{K(principal)}</span> principal is automatically renewed for another {app.termMonths} week{app.termMonths !== 1 ? "s" : ""}. Staff will verify and apply the renewal.
+              </div>
+              <button onClick={() => setStep("pay")}
+                className="w-full py-4 font-bold rounded-[14px] text-sm uppercase tracking-widest flex items-center justify-center gap-2 transition-all hover:-translate-y-0.5"
+                style={{ background: "#0A1F44", border: "2px solid #C9A84C", color: "#C9A84C", boxShadow: "0 8px 24px rgba(10,31,68,0.5)" }}>
+                <RotateCcw size={16} /> Renew for {K(interest)}
+              </button>
+            </>
+          )}
+
+          {step === "pay" && (
+            <>
+              <div className="rounded-xl p-4 text-center"
+                style={{ background: "rgba(201,168,76,0.07)", border: "1px solid rgba(201,168,76,0.25)" }}>
+                <div className="text-xs text-slate-500 mb-1">Send to Philix Finance</div>
+                <div className="text-4xl font-black" style={{ color: "#C9A84C" }}>{K(interest)}</div>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold mb-2" style={{ color: "rgba(201,168,76,0.7)" }}>Provider</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {["Airtel Money","MTN MoMo","Zamtel Kwacha"].map(p => (
+                    <button key={p} onClick={() => setProvider(p)}
+                      className="py-2 text-xs font-semibold rounded-xl transition-all"
+                      style={provider === p
+                        ? { background: "rgba(201,168,76,0.18)", border: "1px solid rgba(201,168,76,0.55)", color: "#C9A84C" }
+                        : { background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", color: "#64748b" }}>
+                      {p.split(" ")[0]}
+                    </button>
+                  ))}
+                </div>
+                {MOBILE[provider] && (
+                  <div className="mt-3 rounded-xl p-3" style={{ background: "rgba(201,168,76,0.07)", border: "1px solid rgba(201,168,76,0.2)" }}>
+                    <p className="text-xs text-slate-500 mb-0.5">Send {K(interest)} to:</p>
+                    <p className="text-xl font-black text-white tracking-widest">{MOBILE[provider]}</p>
+                    <p className="text-xs text-slate-600 mt-0.5">Philix Finance Ltd</p>
+                  </div>
+                )}
+              </div>
+              <button onClick={() => setStep("confirm")}
+                className="w-full py-4 font-bold rounded-[14px] text-sm uppercase tracking-widest transition-all hover:-translate-y-0.5"
+                style={{ background: "linear-gradient(135deg,#C9A84C,#E8C96A,#C9A84C)", color: "#0A1F44", boxShadow: "0 8px 24px rgba(201,168,76,0.4)" }}>
+                I've Sent {K(interest)} →
+              </button>
+            </>
+          )}
+
+          {step === "confirm" && (
+            <>
+              <div>
+                <label className="block text-xs font-semibold mb-1.5" style={{ color: "rgba(201,168,76,0.7)" }}>Transaction Reference *</label>
+                <input value={reference} onChange={e => setReference(e.target.value)}
+                  placeholder="e.g. AIR123456789"
+                  className="w-full px-3 py-3 rounded-xl text-sm text-white font-mono focus:outline-none"
+                  style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(201,168,76,0.3)" }} />
+              </div>
+              {error && <p className="text-xs text-red-400">{error}</p>}
+              <div className="flex gap-3">
+                <button onClick={() => setStep("pay")}
+                  className="px-4 py-3 text-sm font-semibold rounded-xl"
+                  style={{ border: "1px solid rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.4)" }}>← Back</button>
+                <button onClick={submit} disabled={!reference}
+                  className="flex-1 py-3 text-sm font-bold rounded-[14px] disabled:opacity-50 transition-all"
+                  style={{ background: "linear-gradient(135deg,#C9A84C,#E8C96A,#C9A84C)", color: "#0A1F44" }}>
+                  ✓ Confirm Renewal
+                </button>
+              </div>
+            </>
+          )}
+
+          {step === "success" && (
+            <div className="py-8 text-center space-y-4">
+              <div className="w-20 h-20 rounded-full flex items-center justify-center mx-auto"
+                style={{ background: "#0A1F44", border: "4px solid rgba(201,168,76,0.5)" }}>
+                <RotateCcw size={36} style={{ color: "#C9A84C" }} />
+              </div>
+              <div>
+                <p className="text-xl font-black text-white mb-1">Renewal Submitted! 🔄</p>
+                <p className="text-sm text-slate-400">Once we verify your {K(interest)} payment, your {K(principal)} loan renews automatically.</p>
+              </div>
+              <button onClick={onClose}
+                className="w-full py-3 font-semibold rounded-xl text-sm text-white"
+                style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)" }}>Done</button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Main Dashboard ─────────────────────────────────────────────────────────
 export default function ClientDashboardPage() {
   const client = useClientAuthStore(s => s.client);
@@ -440,9 +606,10 @@ export default function ClientDashboardPage() {
   const [loading, setLoading]         = useState(true);
   const [ann, setAnn]                 = useState<{ id: string; subject: string; body: string; createdAt: string }[]>([]);
   const [tab, setTab]                 = useState<"home" | "loans" | "alerts" | "profile">("home");
-  const [payModalOpen, setPayModalOpen]     = useState(false);
+  const [payModalOpen, setPayModalOpen]       = useState(false);
   const [reloanModalOpen, setReloanModalOpen] = useState(false);
-  const [paySuccessMsg, setPaySuccessMsg]   = useState("");
+  const [renewModalOpen, setRenewModalOpen]   = useState(false);
+  const [paySuccessMsg, setPaySuccessMsg]     = useState("");
 
   useEffect(() => {
     if (!token) { setLoading(false); return; }
@@ -455,6 +622,21 @@ export default function ClientDashboardPage() {
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [token]);
+
+  // Auto-poll every 10 s when PENDING payments exist — balance refreshes within seconds of approval
+  useEffect(() => {
+    if (!token) return;
+    const hasPending = apps.some(a => (a.paymentSubmissions ?? []).some(p => p.status === "PENDING"));
+    if (!hasPending) return;
+    const h = { Authorization: `Bearer ${token}` };
+    const tid = setInterval(() => {
+      fetch("/api/portal/applications", { headers: h })
+        .then(r => r.ok ? r.json() : null)
+        .then(data => { if (data) setApps(Array.isArray(data) ? data : []); })
+        .catch(() => {});
+    }, 10000);
+    return () => clearInterval(tid);
+  }, [apps, token]);
 
   if (!client) return null;
 
@@ -522,6 +704,7 @@ export default function ClientDashboardPage() {
         : a
     ));
     setPayModalOpen(false);
+    setRenewModalOpen(false);
     setPaySuccessMsg("Payment submitted! Our team will verify within a few hours.");
     setTimeout(() => setPaySuccessMsg(""), 6000);
   }
@@ -563,6 +746,9 @@ export default function ClientDashboardPage() {
       )}
       {reloanModalOpen && reloanSource && (
         <DashboardReloanModal sourceApp={reloanSource} token={token} onClose={() => setReloanModalOpen(false)} onDone={handleReloanDone} />
+      )}
+      {renewModalOpen && active && (
+        <DashboardRenewModal app={active} token={token} onClose={() => setRenewModalOpen(false)} onDone={handlePaymentDone} />
       )}
 
       {/* ── KYC BANNER ─────────────────────────────────────────────────── */}
@@ -793,6 +979,17 @@ export default function ClientDashboardPage() {
         </div>
       )}
 
+      {/* ── PENDING PAYMENT AUTO-POLL NOTICE ──────────────────────────── */}
+      {apps.some(a => (a.paymentSubmissions ?? []).some(p => p.status === "PENDING")) && (
+        <div className="flex items-center gap-3 rounded-xl px-4 py-3 mb-3"
+          style={{ background: "rgba(201,168,76,0.06)", border: "1px solid rgba(201,168,76,0.18)" }}>
+          <RefreshCw size={11} className="animate-spin flex-shrink-0" style={{ color: "#C9A84C" }} />
+          <p className="text-xs" style={{ color: "rgba(201,168,76,0.75)" }}>
+            Payment pending verification — balance updates automatically when confirmed.
+          </p>
+        </div>
+      )}
+
       {/* ── PENDING NOTICE ─────────────────────────────────────────────── */}
       {pending.length > 0 && (
         <div className="flex items-center gap-3 rounded-xl px-4 py-3 mb-3"
@@ -813,54 +1010,52 @@ export default function ClientDashboardPage() {
             <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1">Quick Actions</p>
             <p className="text-xs text-slate-400">
               {active?.status === "DISBURSED"
-                ? "You have an active loan. Make a payment to reduce your balance."
+                ? "Active loan — make a payment or renew by paying interest only."
                 : apps.some(a => a.status === "REPAID")
-                ? "Your loan is fully cleared. Ready to borrow again?"
-                : "No active loan. Apply for a new loan today."}
+                ? "Loan cleared. Ready to borrow again?"
+                : "No active loan. Apply today."}
             </p>
           </div>
           <div className="p-4 flex flex-col sm:flex-row gap-3">
             {active?.status === "DISBURSED" && !isFullyPaid && (
-              <button onClick={() => setPayModalOpen(true)}
-                className="pay-loan-btn flex-1 rounded-[14px] font-bold uppercase flex flex-col items-center justify-center gap-1 transition-all hover:-translate-y-0.5"
-                style={{
-                  background: "linear-gradient(135deg,#C9A84C 0%,#E8C96A 50%,#C9A84C 100%)",
-                  color: "#0A1F44",
-                  padding: "16px 24px",
-                  fontSize: 15,
-                  letterSpacing: "0.08em",
-                  boxShadow: "0 8px 24px rgba(201,168,76,0.40)",
-                  minWidth: 200,
-                }}>
-                <div className="flex items-center gap-2">
-                  <Wallet size={18} />
-                  PAY LOAN
-                </div>
-                <span style={{ fontSize: 12, fontWeight: 400, letterSpacing: "0.02em", opacity: 0.7 }}>
-                  Outstanding: {K(remaining)}
-                </span>
-              </button>
+              <>
+                {/* Gold PAY LOAN */}
+                <button onClick={() => setPayModalOpen(true)}
+                  className="pay-loan-btn flex-1 rounded-[14px] font-bold uppercase flex flex-col items-center justify-center gap-1 transition-all hover:-translate-y-0.5"
+                  style={{
+                    background: "linear-gradient(135deg,#C9A84C 0%,#E8C96A 50%,#C9A84C 100%)",
+                    color: "#0A1F44", padding: "14px 18px", fontSize: 14,
+                    letterSpacing: "0.08em", boxShadow: "0 8px 24px rgba(201,168,76,0.40)",
+                  }}>
+                  <div className="flex items-center gap-2"><Wallet size={16} /> PAY LOAN</div>
+                  <span style={{ fontSize: 11, fontWeight: 400, opacity: 0.7 }}>Outstanding: {K(remaining)}</span>
+                </button>
+
+                {/* Navy RENEW LOAN */}
+                <button onClick={() => setRenewModalOpen(true)}
+                  className="reloan-btn flex-1 rounded-[14px] font-bold uppercase flex flex-col items-center justify-center gap-1 transition-all hover:-translate-y-0.5"
+                  style={{
+                    background: "#0A1F44", color: "#C9A84C", padding: "14px 18px", fontSize: 14,
+                    letterSpacing: "0.08em", border: "2px solid #C9A84C",
+                    boxShadow: "0 8px 24px rgba(10,31,68,0.30)",
+                  }}>
+                  <div className="flex items-center gap-2"><RotateCcw size={16} /> RENEW LOAN</div>
+                  <span style={{ fontSize: 11, fontWeight: 400, opacity: 0.65 }}>
+                    Pay {K(Math.ceil(principal * (rate / 100)))} interest only
+                  </span>
+                </button>
+              </>
             )}
             {eligibleForReloan && (
               <button onClick={() => setReloanModalOpen(true)}
                 className="reloan-btn flex-1 rounded-[14px] font-bold uppercase flex flex-col items-center justify-center gap-1 transition-all hover:-translate-y-0.5"
                 style={{
-                  background: "#0A1F44",
-                  color: "#C9A84C",
-                  padding: "16px 24px",
-                  fontSize: 15,
-                  letterSpacing: "0.08em",
-                  border: "2px solid #C9A84C",
-                  boxShadow: "0 8px 24px rgba(10,31,68,0.30)",
-                  minWidth: 200,
+                  background: "#0A1F44", color: "#C9A84C", padding: "16px 24px", fontSize: 15,
+                  letterSpacing: "0.08em", border: "2px solid #C9A84C",
+                  boxShadow: "0 8px 24px rgba(10,31,68,0.30)", minWidth: 200,
                 }}>
-                <div className="flex items-center gap-2">
-                  <RefreshCw size={18} />
-                  RELOAN
-                </div>
-                <span style={{ fontSize: 12, fontWeight: 400, letterSpacing: "0.02em", opacity: 0.7 }}>
-                  Borrow again — fast approval
-                </span>
+                <div className="flex items-center gap-2"><RefreshCw size={18} /> RELOAN</div>
+                <span style={{ fontSize: 12, fontWeight: 400, opacity: 0.7 }}>Borrow again — fast approval</span>
               </button>
             )}
           </div>

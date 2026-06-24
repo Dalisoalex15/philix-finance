@@ -28,6 +28,8 @@ interface Submission {
   };
 }
 
+const isRollover = (s: Submission) => s.notes === "LOAN_ROLLOVER";
+
 const STATUS_STYLE: Record<string, string> = {
   PENDING:  "bg-amber-100 text-amber-700 border-amber-200",
   APPROVED: "bg-emerald-100 text-emerald-700 border-emerald-200",
@@ -194,8 +196,13 @@ export default function PaymentSubmissionsPage() {
                     <div className="text-xs font-mono text-indigo-600">{s.application.account.clientNumber}</div>
                   </td>
                   <td className="font-mono text-sm text-navy-700">{s.application.reference}</td>
-                  <td className="font-bold text-sm text-navy-900">{s.amount ? K(s.amount) : "—"}</td>
-                  <td className="text-sm text-navy-600">{s.paymentMethod?.replace("_", " ") || "—"}</td>
+                  <td className="font-bold text-sm text-navy-900">
+                    {s.amount ? K(s.amount) : "—"}
+                    {isRollover(s) && (
+                      <span className="ml-2 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-purple-100 text-purple-700 border border-purple-200">RENEWAL</span>
+                    )}
+                  </td>
+                  <td className="text-sm text-navy-600">{isRollover(s) ? "🔄 Loan Renewal" : s.paymentMethod?.replace("_", " ") || "—"}</td>
                   <td className="text-sm font-mono text-navy-600">{s.reference || "—"}</td>
                   <td>
                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${STATUS_STYLE[s.status]}`}>
@@ -250,7 +257,12 @@ export default function PaymentSubmissionsPage() {
                 ))}
               </div>
 
-              {selected.notes && (
+              {isRollover(selected) && (
+                <div className="bg-purple-50 border border-purple-200 rounded-xl px-3 py-2 text-sm text-purple-700 font-semibold flex items-center gap-2">
+                  🔄 Loan Renewal — approving will renew the client's K{K(selected.application.amountRequested)} principal automatically.
+                </div>
+              )}
+              {selected.notes && selected.notes !== "LOAN_ROLLOVER" && (
                 <div>
                   <div className="text-[10px] text-navy-400 uppercase tracking-wider mb-1">Notes from Client</div>
                   <div className="bg-warm-50 border border-warm-200 rounded-xl px-3 py-2 text-sm text-navy-700">{selected.notes}</div>

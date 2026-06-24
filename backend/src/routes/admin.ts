@@ -532,7 +532,7 @@ router.patch("/payment-submissions/:id", wrap(async (req: Request, res: Response
         application: {
           select: {
             id: true, reference: true, amountRequested: true, interestRate: true,
-            status: true, accountId: true,
+            status: true, accountId: true, productType: true, termMonths: true, purpose: true,
             account: { select: { firstName: true } },
             paymentSubmissions: { where: { status: "APPROVED" }, select: { amount: true } },
           },
@@ -559,6 +559,40 @@ router.patch("/payment-submissions/:id", wrap(async (req: Request, res: Response
     try {
       if (status === "APPROVED" && submission.application) {
         const app = submission.application;
+        const reviewedByStr = user.firstName && user.lastName ? `${user.firstName} ${user.lastName}` : user.email;
+
+        // ── LOAN ROLLOVER: client paid interest only — renew the principal ──
+        if (submission.notes === "LOAN_ROLLOVER" && app.status === "DISBURSED") {
+          const newRef = `PHX-${Math.floor(Math.random() * 9000) + 1000}`;
+          await Promise.all([
+            prisma.portalLoanApplication.update({ where: { id: app.id }, data: { status: "REPAID" } }),
+            prisma.portalLoanApplication.create({
+              data: {
+                reference: newRef,
+                accountId: app.accountId,
+                productType: app.productType ?? "SHORT_TERM_LOAN",
+                amountRequested: app.amountRequested,
+                termMonths: app.termMonths ?? 1,
+                interestRate: app.interestRate ?? 20,
+                purpose: app.purpose ?? "Loan renewal",
+                status: "DISBURSED",
+                reviewedAt: new Date(),
+                reviewedBy: reviewedByStr,
+              },
+            }),
+            prisma.clientNotification.create({
+              data: {
+                accountId: app.accountId,
+                subject: `🔄 Loan renewed — K${app.amountRequested.toLocaleString()} ready!`,
+                body: `Great news, ${app.account.firstName}! Your interest payment has been verified and your loan has been renewed. K${app.amountRequested.toLocaleString()} is available for use again. New reference: ${newRef}.`,
+                category: "LOAN_RENEWED",
+              },
+            }),
+          ]);
+          return; // skip normal repaid/notification flow
+        }
+
+        // ── NORMAL PAYMENT FLOW ──
         const paidSoFar = (app.paymentSubmissions as { amount: number | null }[])
           .reduce((s: number, p) => s + (p.amount ?? 0), 0);
         const thisPayment = submission.amount ?? 0;

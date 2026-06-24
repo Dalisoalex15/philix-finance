@@ -4,6 +4,7 @@ import {
   CreditCard, CheckCircle, Clock, AlertCircle, Calendar, Receipt,
   FileText, ArrowRight, RefreshCw, TrendingUp, ArrowUpCircle,
   ChevronDown, ChevronUp, X, Zap, AlertTriangle, Info, Download,
+  Wallet, RotateCcw, Sparkles,
 } from "lucide-react";
 import jsPDF from "jspdf";
 import { useClientAuthStore } from "../../store/clientAuth";
@@ -304,37 +305,56 @@ function PaymentModal({
   const mmAccount = MOBILE_ACCOUNTS[provider];
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/80 flex items-end sm:items-center justify-center p-0 sm:p-4">
-      <div className="bg-slate-900 border border-slate-800 rounded-t-3xl sm:rounded-2xl w-full sm:max-w-md max-h-[95vh] overflow-y-auto">
+    <div className="fixed inset-0 z-50 bg-black/85 flex items-end sm:items-center justify-center p-0 sm:p-4">
+      <style>{`
+        @keyframes pay-shimmer {
+          0%   { transform: translateX(-120%) skewX(-15deg); }
+          100% { transform: translateX(300%)  skewX(-15deg); }
+        }
+        .pay-submit-btn { position: relative; overflow: hidden; }
+        .pay-submit-btn::after {
+          content: '';
+          position: absolute;
+          inset: 0;
+          background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.32) 50%, transparent 100%);
+          animation: pay-shimmer 1.6s ease-out forwards;
+          pointer-events: none;
+        }
+      `}</style>
+      <div className="w-full sm:max-w-md max-h-[95vh] overflow-y-auto rounded-t-3xl sm:rounded-2xl shadow-2xl"
+        style={{ background: "#070c18", border: "1px solid rgba(201,168,76,0.18)" }}>
 
         {/* Header */}
-        <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-slate-800">
+        <div className="flex items-center justify-between px-5 pt-5 pb-4"
+          style={{ borderBottom: "1px solid rgba(201,168,76,0.12)" }}>
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-emerald-900/40 flex items-center justify-center">
-              <Receipt size={18} className="text-emerald-400" />
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center"
+              style={{ background: "rgba(201,168,76,0.12)", border: "1px solid rgba(201,168,76,0.25)" }}>
+              <Wallet size={18} style={{ color: "#C9A84C" }} />
             </div>
             <div>
-              <h3 className="font-bold text-slate-100 text-base">Make a Repayment</h3>
-              <p className="text-xs text-slate-500">{app.reference}</p>
+              <h3 className="font-bold text-white text-base">Make a Payment</h3>
+              <p className="text-xs font-mono mt-0.5" style={{ color: "rgba(201,168,76,0.6)" }}>{app.reference}</p>
             </div>
           </div>
-          <button onClick={onClose} className="text-slate-500 hover:text-slate-300 p-1"><X size={18} /></button>
+          <button onClick={onClose} className="p-1 hover:opacity-70" style={{ color: "rgba(255,255,255,0.4)" }}><X size={18} /></button>
         </div>
 
         <div className="p-5 space-y-4">
 
-          {/* Loan summary */}
-          <div className="bg-slate-800/60 border border-slate-700 rounded-xl p-4 grid grid-cols-2 gap-3 text-center text-xs">
+          {/* Balance summary — 4 cells */}
+          <div className="grid grid-cols-2 gap-3 p-4 rounded-2xl text-center text-xs"
+            style={{ background: "rgba(201,168,76,0.06)", border: "1px solid rgba(201,168,76,0.15)" }}>
             <div>
               <div className="text-slate-500 mb-0.5">Total Loan</div>
-              <div className="font-bold text-slate-200">{K(totalDue)}</div>
+              <div className="font-bold text-white">{K(totalDue)}</div>
             </div>
             <div>
-              <div className="text-slate-500 mb-0.5">Remaining Balance</div>
-              <div className={`font-bold ${remaining === 0 ? "text-emerald-400" : "text-amber-400"}`}>{K(remaining)}</div>
+              <div className="text-slate-500 mb-0.5">Outstanding</div>
+              <div className="font-bold" style={{ color: "#C9A84C" }}>{K(remaining)}</div>
             </div>
             <div>
-              <div className="text-slate-500 mb-0.5">Total Paid</div>
+              <div className="text-slate-500 mb-0.5">Paid to Date</div>
               <div className="font-bold text-emerald-400">{K(totalPaid)}</div>
             </div>
             <div>
@@ -347,33 +367,40 @@ function PaymentModal({
             <>
               {/* Amount quick-select */}
               <div>
-                <label className="block text-xs font-semibold text-slate-400 mb-2">How much are you paying?</label>
+                <label className="block text-xs font-semibold mb-2" style={{ color: "rgba(201,168,76,0.7)" }}>How much are you paying?</label>
                 <div className="grid grid-cols-2 gap-2 mb-3">
                   {[
                     { label: `Weekly — ${K(weeklyAmt)}`,  value: weeklyAmt },
-                    { label: `Full balance — ${K(remaining)}`, value: remaining },
+                    { label: `Pay in Full — ${K(remaining)}`, value: remaining },
                   ].map(q => (
                     <button key={q.label} onClick={() => setAmount(String(q.value))}
-                      className={`py-2.5 px-3 text-xs font-semibold rounded-xl border transition-all ${String(q.value) === amount ? "bg-emerald-600 text-white border-emerald-600" : "bg-slate-800 text-slate-400 border-slate-700 hover:border-emerald-700 hover:text-emerald-400"}`}>
+                      className="py-2.5 px-3 text-xs font-semibold rounded-xl transition-all"
+                      style={String(q.value) === amount
+                        ? { background: "rgba(201,168,76,0.18)", border: "1px solid rgba(201,168,76,0.6)", color: "#C9A84C" }
+                        : { background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.09)", color: "#64748b" }}>
                       {q.label}
                     </button>
                   ))}
                 </div>
                 <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">K</span>
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 font-bold text-sm" style={{ color: "rgba(201,168,76,0.7)" }}>K</span>
                   <input type="number" value={amount} onChange={e => setAmount(e.target.value)}
-                    placeholder="Other amount"
-                    className="w-full pl-8 pr-4 py-3 bg-slate-800 border border-slate-700 rounded-xl text-sm text-slate-100 font-semibold focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/30" />
+                    placeholder="Custom amount"
+                    className="w-full pl-8 pr-4 py-3 rounded-xl text-sm text-white font-semibold focus:outline-none"
+                    style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(201,168,76,0.2)" }} />
                 </div>
               </div>
 
               {/* Payment method */}
               <div>
-                <label className="block text-xs font-semibold text-slate-400 mb-2">Payment Method</label>
+                <label className="block text-xs font-semibold mb-2" style={{ color: "rgba(201,168,76,0.7)" }}>Payment Method</label>
                 <div className="grid grid-cols-3 gap-2">
-                  {[["MOBILE_MONEY","📱 Mobile Money"],["BANK_TRANSFER","🏦 Bank"],["CASH","💵 Cash"]].map(([v,l]) => (
+                  {[["MOBILE_MONEY","📱 Mobile"],["BANK_TRANSFER","🏦 Bank"],["CASH","💵 Cash"]].map(([v,l]) => (
                     <button key={v} onClick={() => setMethod(v)}
-                      className={`py-2.5 text-xs font-semibold rounded-xl border transition-all ${method === v ? "bg-indigo-600 text-white border-indigo-600" : "bg-slate-800 text-slate-400 border-slate-700 hover:border-slate-600"}`}>
+                      className="py-2.5 text-xs font-semibold rounded-xl transition-all"
+                      style={method === v
+                        ? { background: "rgba(201,168,76,0.18)", border: "1px solid rgba(201,168,76,0.55)", color: "#C9A84C" }
+                        : { background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", color: "#64748b" }}>
                       {l}
                     </button>
                   ))}
@@ -384,26 +411,30 @@ function PaymentModal({
               {method === "MOBILE_MONEY" && (
                 <div className="space-y-3">
                   <div>
-                    <label className="block text-xs font-semibold text-slate-400 mb-2">Select Provider</label>
+                    <label className="block text-xs font-semibold mb-2" style={{ color: "rgba(201,168,76,0.7)" }}>Select Provider</label>
                     <div className="grid grid-cols-3 gap-2">
                       {["Airtel Money", "MTN MoMo", "Zamtel Kwacha"].map(p => (
                         <button key={p} onClick={() => setProvider(p)}
-                          className={`py-2 text-xs font-semibold rounded-xl border transition-all ${provider === p ? "bg-amber-600 text-white border-amber-600" : "bg-slate-800 text-slate-400 border-slate-700 hover:border-amber-700"}`}>
-                          {p}
+                          className="py-2 text-xs font-semibold rounded-xl transition-all"
+                          style={provider === p
+                            ? { background: "rgba(201,168,76,0.18)", border: "1px solid rgba(201,168,76,0.55)", color: "#C9A84C" }
+                            : { background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", color: "#64748b" }}>
+                          {p.split(" ")[0]}
                         </button>
                       ))}
                     </div>
                   </div>
                   {mmAccount && (
-                    <div className="bg-emerald-900/20 border border-emerald-700/40 rounded-xl p-4">
-                      <div className="text-xs font-bold text-emerald-400 mb-2">Send {K(Number(amount) || weeklyAmt)} to:</div>
+                    <div className="rounded-xl p-4" style={{ background: "rgba(201,168,76,0.07)", border: "1px solid rgba(201,168,76,0.22)" }}>
+                      <div className="text-xs font-bold mb-2" style={{ color: "#C9A84C" }}>Send {K(Number(amount) || weeklyAmt)} to:</div>
                       <div className="flex items-center justify-between">
                         <div>
-                          <div className="text-lg font-black text-white tracking-widest">{mmAccount.number}</div>
+                          <div className="text-xl font-black text-white tracking-widest">{mmAccount.number}</div>
                           <div className="text-xs text-slate-400 mt-0.5">{mmAccount.name} · {provider}</div>
                         </div>
                         <button onClick={() => navigator.clipboard.writeText(mmAccount.number.replace(/\s/g, ""))}
-                          className="text-xs text-emerald-400 hover:text-emerald-300 border border-emerald-800/50 px-2 py-1 rounded-lg">
+                          className="text-xs px-3 py-1.5 rounded-lg font-semibold"
+                          style={{ background: "rgba(201,168,76,0.15)", color: "#C9A84C", border: "1px solid rgba(201,168,76,0.3)" }}>
                           Copy
                         </button>
                       </div>
@@ -414,50 +445,64 @@ function PaymentModal({
               )}
 
               {method === "BANK_TRANSFER" && (
-                <div className="bg-blue-900/20 border border-blue-700/40 rounded-xl p-4 text-xs space-y-1">
-                  <div className="font-bold text-blue-400 mb-2">Bank Transfer Details</div>
-                  <div className="text-slate-300"><span className="text-slate-500">Bank:</span> Zanaco</div>
-                  <div className="text-slate-300"><span className="text-slate-500">Account Name:</span> Philix Finance Ltd</div>
-                  <div className="text-slate-300"><span className="text-slate-500">Account No:</span> 1234567890</div>
-                  <div className="text-slate-300"><span className="text-slate-500">Branch:</span> Cairo Road, Lusaka</div>
-                  <div className="text-slate-500 mt-2">Use your loan reference <span className="text-white font-mono font-bold">{app.reference}</span> as the payment reference</div>
+                <div className="rounded-xl p-4 text-xs space-y-1.5"
+                  style={{ background: "rgba(99,102,241,0.07)", border: "1px solid rgba(99,102,241,0.2)" }}>
+                  <div className="font-bold text-indigo-400 mb-2">Bank Transfer Details</div>
+                  <div className="text-slate-300"><span className="text-slate-500">Bank: </span>Zanaco</div>
+                  <div className="text-slate-300"><span className="text-slate-500">Account Name: </span>Philix Finance Ltd</div>
+                  <div className="text-slate-300"><span className="text-slate-500">Account No: </span>1234567890</div>
+                  <div className="text-slate-500 mt-2">Reference: <span className="text-white font-mono font-bold">{app.reference}</span></div>
                 </div>
               )}
 
               {method === "CASH" && (
-                <div className="bg-amber-900/20 border border-amber-700/40 rounded-xl p-4 text-xs">
+                <div className="rounded-xl p-4 text-xs"
+                  style={{ background: "rgba(245,158,11,0.07)", border: "1px solid rgba(245,158,11,0.2)" }}>
                   <div className="font-bold text-amber-400 mb-1">Pay in person</div>
-                  <div className="text-slate-400">Visit our office at <span className="text-slate-200">Cairo Road, Lusaka</span>, Mon–Fri 08:00–17:00. Bring this reference: <span className="text-white font-mono font-bold">{app.reference}</span></div>
+                  <div className="text-slate-400">Visit our office at <span className="text-slate-200">Cairo Road, Lusaka</span>, Mon–Fri 08:00–17:00. Reference: <span className="text-white font-mono font-bold">{app.reference}</span></div>
                 </div>
               )}
 
               <button onClick={() => setStep("confirm")}
                 disabled={!amount || Number(amount) <= 0}
-                className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl transition-all disabled:opacity-40 disabled:cursor-not-allowed text-sm">
-                I've Sent the Payment →
+                className="pay-submit-btn w-full py-4 font-bold rounded-2xl transition-all disabled:opacity-40 disabled:cursor-not-allowed text-sm uppercase tracking-widest"
+                style={{
+                  background: "linear-gradient(135deg,#C9A84C 0%,#E8C96A 50%,#C9A84C 100%)",
+                  color: "#0A1F44",
+                  boxShadow: "0 8px 28px rgba(201,168,76,0.40)",
+                  letterSpacing: "0.1em",
+                }}>
+                <div className="flex items-center justify-center gap-2">
+                  <Wallet size={16} /> I've Sent the Payment →
+                </div>
               </button>
             </>
-          ) : (
+          ) : step === "confirm" ? (
             <>
-              {/* Confirm step — enter reference + screenshot */}
-              <div className="flex items-center gap-2 text-xs text-emerald-400 bg-emerald-900/20 border border-emerald-800/40 rounded-xl px-3 py-2">
-                <CheckCircle size={12} /> Payment of {K(Number(amount))} sent via {provider || method.replace("_", " ")}
+              {/* Confirm step */}
+              <div className="flex items-center gap-2 text-xs rounded-xl px-3 py-2.5"
+                style={{ background: "rgba(201,168,76,0.08)", border: "1px solid rgba(201,168,76,0.25)", color: "#C9A84C" }}>
+                <CheckCircle size={12} /> {K(Number(amount))} sent via {provider || method.replace("_", " ")}
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-400 mb-1.5">Transaction Reference / Receipt Number *</label>
+                <label className="block text-xs font-semibold mb-1.5" style={{ color: "rgba(201,168,76,0.7)" }}>Transaction Reference *</label>
                 <input type="text" value={reference} onChange={e => setReference(e.target.value)}
                   placeholder="e.g. AIR123456789"
-                  className="w-full px-3 py-3 bg-slate-800 border border-slate-700 rounded-xl text-sm text-slate-100 font-mono focus:outline-none focus:border-emerald-500" />
+                  className="w-full px-3 py-3 rounded-xl text-sm text-white font-mono focus:outline-none"
+                  style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(201,168,76,0.25)" }} />
                 <p className="text-[10px] text-slate-600 mt-1">Found in your SMS or transaction history</p>
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-400 mb-1.5">Screenshot of Transaction (recommended)</label>
-                <label className={`flex flex-col items-center gap-2 p-4 border-2 border-dashed rounded-xl cursor-pointer transition-colors ${screenshot ? "border-emerald-700 bg-emerald-900/10" : "border-slate-700 hover:border-indigo-600"}`}>
+                <label className="block text-xs font-semibold mb-1.5" style={{ color: "rgba(201,168,76,0.7)" }}>Screenshot (recommended)</label>
+                <label className={`flex flex-col items-center gap-2 p-4 border-2 border-dashed rounded-xl cursor-pointer transition-all`}
+                  style={screenshot
+                    ? { borderColor: "rgba(201,168,76,0.5)", background: "rgba(201,168,76,0.05)" }
+                    : { borderColor: "rgba(255,255,255,0.1)", background: "transparent" }}>
                   <input type="file" accept="image/*" onChange={handleFile} className="hidden" />
                   {screenshot ? (
-                    <><img src={screenshot} alt="preview" className="max-h-28 rounded-lg object-cover" /><span className="text-xs text-emerald-400">Screenshot attached ✓</span></>
+                    <><img src={screenshot} alt="preview" className="max-h-28 rounded-lg object-cover" /><span className="text-xs" style={{ color: "#C9A84C" }}>Screenshot attached ✓</span></>
                   ) : (
                     <><Receipt size={20} className="text-slate-600" /><span className="text-xs text-slate-500">Tap to attach screenshot</span></>
                   )}
@@ -465,46 +510,274 @@ function PaymentModal({
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-400 mb-1.5">Notes (optional)</label>
+                <label className="block text-xs font-semibold mb-1.5" style={{ color: "rgba(201,168,76,0.7)" }}>Notes (optional)</label>
                 <textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Any message for our team…" rows={2}
-                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-sm text-slate-200 focus:outline-none focus:border-indigo-500 resize-none" />
+                  className="w-full px-3 py-2 rounded-xl text-sm text-slate-200 focus:outline-none resize-none"
+                  style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }} />
               </div>
 
-              {error && <div className="text-xs text-red-400 bg-red-900/20 border border-red-800/40 rounded-xl px-3 py-2">{error}</div>}
+              {error && <div className="text-xs text-red-400 rounded-xl px-3 py-2" style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)" }}>{error}</div>}
 
               <div className="flex gap-3">
-                <button onClick={() => setStep("send")} className="px-4 py-3 text-sm font-semibold text-slate-400 border border-slate-700 rounded-xl hover:bg-slate-800">← Back</button>
+                <button onClick={() => setStep("send")}
+                  className="px-4 py-3 text-sm font-semibold rounded-xl"
+                  style={{ border: "1px solid rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.5)" }}>← Back</button>
                 <button onClick={submit} disabled={!reference}
-                  className="flex-1 py-3 text-sm font-bold bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl disabled:opacity-50 transition-all">
+                  className="flex-1 py-3 text-sm font-bold rounded-xl disabled:opacity-50 transition-all"
+                  style={{ background: "linear-gradient(135deg,#C9A84C,#E8C96A,#C9A84C)", color: "#0A1F44" }}>
                   ✓ Confirm Payment
                 </button>
               </div>
-              <p className="text-[10px] text-slate-600 text-center">Our team will verify your payment within a few hours and update your loan status.</p>
+              <p className="text-[10px] text-slate-600 text-center">Our team will verify within a few hours and update your balance.</p>
             </>
-          )}
+          ) : null}
 
-          {/* ── Instant success screen ── */}
+          {/* Success screen */}
           {step === "success" && (
             <div className="py-6 text-center space-y-4">
-              <div className="w-20 h-20 rounded-full bg-emerald-900/40 border-4 border-emerald-500 flex items-center justify-center mx-auto animate-[scale-in_0.3s_ease-out]">
-                <CheckCircle size={40} className="text-emerald-400" />
+              <div className="w-20 h-20 rounded-full flex items-center justify-center mx-auto"
+                style={{ background: "rgba(201,168,76,0.1)", border: "4px solid rgba(201,168,76,0.45)" }}>
+                <CheckCircle size={40} style={{ color: "#C9A84C" }} />
               </div>
               <div>
                 <div className="text-xl font-black text-white mb-1">Payment Submitted! 🎉</div>
                 <div className="text-sm text-slate-400">
-                  <span className="text-emerald-400 font-bold">{K(Number(amount))}</span> via {provider || method.replace("_", " ")}
+                  <span className="font-bold" style={{ color: "#C9A84C" }}>{K(Number(amount))}</span> via {provider || method.replace("_", " ")}
                 </div>
                 <div className="text-xs text-slate-500 mt-1">Ref: <span className="font-mono text-slate-300">{reference}</span></div>
               </div>
-              <div className="bg-slate-800/60 border border-slate-700 rounded-xl p-4 text-xs text-slate-400 space-y-1.5 text-left">
-                <div className="flex items-center gap-2"><CheckCircle size={11} className="text-emerald-400 flex-shrink-0" /> Payment proof received by Philix Finance</div>
-                <div className="flex items-center gap-2"><Clock size={11} className="text-amber-400 flex-shrink-0" /> Our team will verify within a few hours</div>
-                <div className="flex items-center gap-2"><CheckCircle size={11} className="text-indigo-400 flex-shrink-0" /> Your loan status will update once verified</div>
+              <div className="rounded-xl p-4 text-xs text-slate-400 space-y-1.5 text-left"
+                style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+                <div className="flex items-center gap-2"><CheckCircle size={11} style={{ color: "#C9A84C" }} className="flex-shrink-0" /> Payment proof received by Philix Finance</div>
+                <div className="flex items-center gap-2"><Clock size={11} className="text-amber-400 flex-shrink-0" /> We'll verify within a few hours</div>
+                <div className="flex items-center gap-2"><Sparkles size={11} className="text-indigo-400 flex-shrink-0" /> Balance updates automatically once confirmed</div>
               </div>
               <button onClick={onClose}
-                className="w-full py-3 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-semibold rounded-xl transition-all text-sm">
+                className="w-full py-3 font-semibold rounded-xl text-sm text-white"
+                style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)" }}>
                 Done
               </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Rollover Modal ─────────────────────────────────────────────────────────
+function RolloverModal({ app, token, onClose, onDone }: {
+  app: LoanApp; token: string | null;
+  onClose: () => void; onDone: (appId: string, sub: PaymentRecord) => void;
+}) {
+  const rate           = app.interestRate ?? 20;
+  const interest       = Math.ceil(app.amountRequested * (rate / 100));
+  const principal      = app.amountRequested;
+
+  const [method,    setMethod]    = useState("MOBILE_MONEY");
+  const [provider,  setProvider]  = useState("Airtel Money");
+  const [reference, setReference] = useState("");
+  const [step,      setStep]      = useState<"info" | "pay" | "confirm" | "success">("info");
+  const [error,     setError]     = useState("");
+  const [loading,   setLoading]   = useState(false);
+
+  const MOBILE: Record<string, string> = {
+    "Airtel Money":  "0977 158 901",
+    "MTN MoMo":      "0968 158 901",
+    "Zamtel Kwacha": "0955 158 901",
+  };
+
+  function submit() {
+    if (!reference) { setError("Enter your transaction reference"); return; }
+    setLoading(true);
+    const optimistic: PaymentRecord = {
+      id: `rollover-${Date.now()}`, amount: interest, status: "PENDING",
+      createdAt: new Date().toISOString(), reference,
+      provider: method === "MOBILE_MONEY" ? provider : null, paymentMethod: method,
+    };
+    setStep("success");
+    onDone(app.id, optimistic);
+    fetch(`/api/portal/applications/${app.id}/rollover`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ paymentMethod: method, provider, reference }),
+    }).catch(() => {});
+    setLoading(false);
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/85 flex items-end sm:items-center justify-center p-0 sm:p-4">
+      <div className="w-full sm:max-w-md max-h-[95vh] overflow-y-auto rounded-t-3xl sm:rounded-2xl shadow-2xl"
+        style={{ background: "#070c18", border: "2px solid rgba(201,168,76,0.35)" }}>
+
+        <div className="flex items-center justify-between px-5 pt-5 pb-4"
+          style={{ borderBottom: "1px solid rgba(201,168,76,0.12)" }}>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center"
+              style={{ background: "rgba(10,31,68,0.9)", border: "1px solid rgba(201,168,76,0.4)" }}>
+              <RotateCcw size={18} style={{ color: "#C9A84C" }} />
+            </div>
+            <div>
+              <h3 className="font-bold text-white text-base">Renew My Loan</h3>
+              <p className="text-xs mt-0.5" style={{ color: "rgba(201,168,76,0.6)" }}>Pay interest only — keep the principal</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-1 hover:opacity-70" style={{ color: "rgba(255,255,255,0.4)" }}><X size={18} /></button>
+        </div>
+
+        <div className="p-5 space-y-4">
+
+          {step === "info" && (
+            <>
+              {/* Hero explanation */}
+              <div className="rounded-2xl p-5 text-center"
+                style={{ background: "linear-gradient(135deg,rgba(10,31,68,0.95),rgba(20,40,80,0.95))", border: "1px solid rgba(201,168,76,0.3)" }}>
+                <p className="text-xs font-semibold mb-3 uppercase tracking-widest" style={{ color: "rgba(201,168,76,0.65)" }}>How Loan Renewal Works</p>
+                <div className="grid grid-cols-3 gap-3 text-center mb-4">
+                  <div>
+                    <div className="text-2xl font-black text-white">1</div>
+                    <div className="text-xs text-slate-400 mt-1">Pay just the interest</div>
+                  </div>
+                  <div className="flex items-center justify-center"><ArrowRight size={18} style={{ color: "#C9A84C" }} /></div>
+                  <div>
+                    <div className="text-2xl font-black text-white">2</div>
+                    <div className="text-xs text-slate-400 mt-1">We verify your payment</div>
+                  </div>
+                </div>
+                <div className="flex items-center justify-center gap-2 text-sm font-bold py-2 px-4 rounded-xl"
+                  style={{ background: "rgba(201,168,76,0.15)", color: "#C9A84C" }}>
+                  ✓ Your K{K(principal)} is renewed for another {app.termMonths} week{app.termMonths !== 1 ? "s" : ""}
+                </div>
+              </div>
+
+              {/* Numbers */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-xl p-4 text-center"
+                  style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+                  <div className="text-xs text-slate-500 mb-1">Principal (you keep)</div>
+                  <div className="text-xl font-black text-emerald-400">{K(principal)}</div>
+                </div>
+                <div className="rounded-xl p-4 text-center"
+                  style={{ background: "rgba(201,168,76,0.07)", border: "1px solid rgba(201,168,76,0.25)" }}>
+                  <div className="text-xs text-slate-500 mb-1">Interest to pay now</div>
+                  <div className="text-xl font-black" style={{ color: "#C9A84C" }}>{K(interest)}</div>
+                  <div className="text-[10px] text-slate-600 mt-0.5">{rate}% of {K(principal)}</div>
+                </div>
+              </div>
+
+              <button onClick={() => setStep("pay")}
+                className="w-full py-4 font-bold rounded-2xl text-sm uppercase tracking-widest flex items-center justify-center gap-2 transition-all hover:-translate-y-0.5"
+                style={{ background: "#0A1F44", border: "2px solid #C9A84C", color: "#C9A84C", boxShadow: "0 8px 24px rgba(10,31,68,0.4), 0 0 0 0 rgba(201,168,76,0.3)" }}>
+                <RotateCcw size={16} /> Renew for {K(interest)}
+              </button>
+            </>
+          )}
+
+          {step === "pay" && (
+            <>
+              <div className="rounded-xl p-4 text-center"
+                style={{ background: "rgba(201,168,76,0.07)", border: "1px solid rgba(201,168,76,0.25)" }}>
+                <div className="text-xs text-slate-500 mb-1">Send this amount</div>
+                <div className="text-4xl font-black" style={{ color: "#C9A84C" }}>{K(interest)}</div>
+                <div className="text-xs text-slate-500 mt-1">Renews your {K(principal)} loan</div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold mb-2" style={{ color: "rgba(201,168,76,0.7)" }}>Payment Method</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {[["MOBILE_MONEY","📱 Mobile"],["BANK_TRANSFER","🏦 Bank"],["CASH","💵 Cash"]].map(([v,l]) => (
+                    <button key={v} onClick={() => setMethod(v)}
+                      className="py-2.5 text-xs font-semibold rounded-xl transition-all"
+                      style={method === v
+                        ? { background: "rgba(201,168,76,0.18)", border: "1px solid rgba(201,168,76,0.6)", color: "#C9A84C" }
+                        : { background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.09)", color: "#64748b" }}>
+                      {l}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {method === "MOBILE_MONEY" && (
+                <div className="space-y-3">
+                  <div className="grid grid-cols-3 gap-2">
+                    {["Airtel Money","MTN MoMo","Zamtel Kwacha"].map(p => (
+                      <button key={p} onClick={() => setProvider(p)}
+                        className="py-2 text-xs font-semibold rounded-xl transition-all"
+                        style={provider === p
+                          ? { background: "rgba(201,168,76,0.18)", border: "1px solid rgba(201,168,76,0.55)", color: "#C9A84C" }
+                          : { background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.09)", color: "#64748b" }}>
+                        {p.split(" ")[0]}
+                      </button>
+                    ))}
+                  </div>
+                  {MOBILE[provider] && (
+                    <div className="rounded-xl p-4" style={{ background: "rgba(201,168,76,0.07)", border: "1px solid rgba(201,168,76,0.22)" }}>
+                      <div className="text-xs font-bold mb-2" style={{ color: "#C9A84C" }}>Send {K(interest)} to:</div>
+                      <div className="text-xl font-black text-white tracking-widest">{MOBILE[provider]}</div>
+                      <div className="text-xs text-slate-500 mt-0.5">Philix Finance Ltd · {provider}</div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <button onClick={() => setStep("confirm")}
+                className="w-full py-4 font-bold rounded-2xl text-sm uppercase tracking-widest transition-all hover:-translate-y-0.5"
+                style={{ background: "linear-gradient(135deg,#C9A84C,#E8C96A,#C9A84C)", color: "#0A1F44", boxShadow: "0 8px 24px rgba(201,168,76,0.4)" }}>
+                I've Sent {K(interest)} →
+              </button>
+            </>
+          )}
+
+          {step === "confirm" && (
+            <>
+              <div className="flex items-center gap-2 text-xs rounded-xl px-3 py-2.5"
+                style={{ background: "rgba(201,168,76,0.08)", border: "1px solid rgba(201,168,76,0.25)", color: "#C9A84C" }}>
+                <CheckCircle size={12} /> {K(interest)} sent via {provider || method.replace(/_/g, " ")}
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold mb-1.5" style={{ color: "rgba(201,168,76,0.7)" }}>Transaction Reference *</label>
+                <input value={reference} onChange={e => setReference(e.target.value)}
+                  placeholder="e.g. AIR123456789"
+                  className="w-full px-3 py-3 rounded-xl text-sm text-white font-mono focus:outline-none"
+                  style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(201,168,76,0.25)" }} />
+                <p className="text-[10px] text-slate-600 mt-1">Found in your SMS or transaction history</p>
+              </div>
+
+              {error && <p className="text-xs text-red-400">{error}</p>}
+
+              <div className="flex gap-3">
+                <button onClick={() => setStep("pay")}
+                  className="px-4 py-3 text-sm font-semibold rounded-xl"
+                  style={{ border: "1px solid rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.4)" }}>← Back</button>
+                <button onClick={submit} disabled={loading || !reference}
+                  className="flex-1 py-3 text-sm font-bold rounded-xl disabled:opacity-50 transition-all"
+                  style={{ background: "linear-gradient(135deg,#C9A84C,#E8C96A,#C9A84C)", color: "#0A1F44" }}>
+                  {loading ? "Submitting…" : "✓ Confirm Renewal"}
+                </button>
+              </div>
+            </>
+          )}
+
+          {step === "success" && (
+            <div className="py-8 text-center space-y-4">
+              <div className="w-20 h-20 rounded-full flex items-center justify-center mx-auto"
+                style={{ background: "rgba(10,31,68,0.9)", border: "4px solid rgba(201,168,76,0.5)" }}>
+                <RotateCcw size={36} style={{ color: "#C9A84C" }} />
+              </div>
+              <div>
+                <p className="text-xl font-black text-white mb-1">Renewal Submitted! 🔄</p>
+                <p className="text-sm text-slate-400">We'll verify your {K(interest)} payment and automatically renew your {K(principal)} loan.</p>
+              </div>
+              <div className="rounded-xl p-4 text-xs text-slate-400 space-y-1.5 text-left"
+                style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+                <div className="flex items-center gap-2"><Clock size={11} className="text-amber-400" /> Verification takes a few hours</div>
+                <div className="flex items-center gap-2"><RotateCcw size={11} style={{ color: "#C9A84C" }} /> Loan auto-renews once payment confirmed</div>
+                <div className="flex items-center gap-2"><Sparkles size={11} className="text-indigo-400" /> You'll receive a notification when done</div>
+              </div>
+              <button onClick={onClose}
+                className="w-full py-3 font-semibold rounded-xl text-sm text-white"
+                style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)" }}>Done</button>
             </div>
           )}
         </div>
@@ -522,6 +795,7 @@ export default function MyLoansPage() {
   const [upgradeTarget, setUpgradeTarget] = useState<LoanApp | null>(null);
   const [reloanTarget, setReloanTarget] = useState<LoanApp | null>(null);
   const [payApp, setPayApp] = useState<LoanApp | null>(null);
+  const [rolloverTarget, setRolloverTarget] = useState<LoanApp | null>(null);
   const [successMsg, setSuccessMsg] = useState("");
 
   const authHeader = { Authorization: `Bearer ${token}` };
@@ -541,6 +815,16 @@ export default function MyLoansPage() {
   }, [token]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Auto-poll every 10 s while any loan has a PENDING payment — balance updates within seconds of staff approval
+  useEffect(() => {
+    const hasPending = apps.some(a =>
+      (a.paymentSubmissions ?? []).some(p => p.status === "PENDING")
+    );
+    if (!hasPending) return;
+    const tid = setInterval(load, 10000);
+    return () => clearInterval(tid);
+  }, [apps, load]);
 
   const autoUpgrades = apps.filter(a => (a as any).autoUpgraded);
   const activeApps   = apps.filter(a => ACTIVE.includes(a.status));
@@ -583,6 +867,18 @@ export default function MyLoansPage() {
     setReloanTarget(null);
     setSuccessMsg(`New loan application ${created.reference} submitted successfully!`);
     setTimeout(() => setSuccessMsg(""), 5000);
+  }
+
+  function handleRolloverDone(appId: string, submission: PaymentRecord) {
+    // Inject optimistic PENDING renewal record into the loan
+    setApps(prev => prev.map(a =>
+      a.id === appId
+        ? { ...a, paymentSubmissions: [submission, ...(a.paymentSubmissions ?? [])] }
+        : a
+    ));
+    setRolloverTarget(null);
+    setSuccessMsg("Loan renewal submitted! Once we verify your interest payment, your principal will be renewed automatically.");
+    setTimeout(() => setSuccessMsg(""), 8000);
   }
 
   function downloadAgreement(app: LoanApp) {
@@ -703,12 +999,12 @@ export default function MyLoansPage() {
           onClose={() => setReloanTarget(null)} onDone={handleReloanDone} />
       )}
       {payApp && (
-        <PaymentModal
-          app={payApp}
-          token={token}
-          onClose={() => setPayApp(null)}
-          onDone={handlePaymentDone}
-        />
+        <PaymentModal app={payApp} token={token}
+          onClose={() => setPayApp(null)} onDone={handlePaymentDone} />
+      )}
+      {rolloverTarget && (
+        <RolloverModal app={rolloverTarget} token={token}
+          onClose={() => setRolloverTarget(null)} onDone={handleRolloverDone} />
       )}
 
       {/* Header */}
@@ -727,6 +1023,17 @@ export default function MyLoansPage() {
         <div className="flex items-center gap-3 bg-emerald-900/30 border border-emerald-800/40 rounded-xl px-4 py-3">
           <CheckCircle size={14} className="text-emerald-400 flex-shrink-0" />
           <p className="text-sm text-emerald-300">{successMsg}</p>
+        </div>
+      )}
+
+      {/* Auto-poll notice — shown when PENDING payments exist */}
+      {apps.some(a => (a.paymentSubmissions ?? []).some(p => p.status === "PENDING")) && (
+        <div className="flex items-center gap-3 rounded-xl px-4 py-3"
+          style={{ background: "rgba(201,168,76,0.06)", border: "1px solid rgba(201,168,76,0.2)" }}>
+          <RefreshCw size={12} className="animate-spin flex-shrink-0" style={{ color: "#C9A84C" }} />
+          <p className="text-xs" style={{ color: "rgba(201,168,76,0.8)" }}>
+            Checking for payment updates every 10 seconds — your balance will refresh automatically once staff confirms.
+          </p>
         </div>
       )}
 
@@ -858,24 +1165,57 @@ export default function MyLoansPage() {
                     );
                   })()}
 
-                  {/* Prominent Pay Now button — always visible for disbursed loans */}
-                  {app.status === "DISBURSED" && (
-                    <div className="mt-3 pt-3 border-t border-slate-800/60">
-                      <button
-                        onClick={e => { e.stopPropagation(); setPayApp(app); }}
-                        className={`w-full flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-sm transition-all ${
-                          overdue
-                            ? "bg-red-600 hover:bg-red-500 text-white animate-pulse"
+                  {/* PAY LOAN + RENEW LOAN — always visible for disbursed loans */}
+                  {app.status === "DISBURSED" && (() => {
+                    const tDue2 = Math.ceil(app.amountRequested * (1 + (app.interestRate ?? 20) / 100));
+                    const tPaid2 = (app.paymentSubmissions ?? []).filter(p => p.status === "APPROVED").reduce((s, p) => s + (p.amount ?? 0), 0);
+                    const tRem2 = Math.max(0, tDue2 - tPaid2);
+                    const interestOnly = Math.ceil(app.amountRequested * ((app.interestRate ?? 20) / 100));
+                    return (
+                      <div className="mt-3 pt-3 space-y-2" style={{ borderTop: "1px solid rgba(255,255,255,0.07)" }}>
+                        {/* Gold PAY LOAN button */}
+                        <button onClick={e => { e.stopPropagation(); setPayApp(app); }}
+                          className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl font-bold text-sm uppercase tracking-widest transition-all hover:-translate-y-0.5"
+                          style={{
+                            background: overdue
+                              ? "linear-gradient(135deg,#ef4444,#dc2626)"
+                              : "linear-gradient(135deg,#C9A84C 0%,#E8C96A 50%,#C9A84C 100%)",
+                            color: overdue ? "#fff" : "#0A1F44",
+                            boxShadow: overdue
+                              ? "0 8px 24px rgba(239,68,68,0.4)"
+                              : "0 8px 24px rgba(201,168,76,0.4)",
+                            letterSpacing: "0.08em",
+                          }}>
+                          <Wallet size={16} />
+                          {overdue
+                            ? `⚠️ PAY NOW — ${Math.abs(days!)}d overdue`
                             : nearDue
-                            ? "bg-amber-500 hover:bg-amber-400 text-white"
-                            : "bg-emerald-600 hover:bg-emerald-500 text-white"
-                        }`}
-                      >
-                        <Receipt size={15} />
-                        {overdue ? `⚠️ Pay Now — ${Math.abs(days!)} days overdue` : nearDue ? `Pay Now — Due in ${days} day${days !== 1 ? "s" : ""}` : "💳 Make a Repayment"}
-                      </button>
-                    </div>
-                  )}
+                            ? `PAY LOAN — Due in ${days}d`
+                            : `PAY LOAN`}
+                          <span style={{ fontSize: 11, fontWeight: 400, opacity: 0.7, marginLeft: 4 }}>
+                            Outstanding: {K(tRem2)}
+                          </span>
+                        </button>
+
+                        {/* Navy RENEW LOAN button */}
+                        <button onClick={e => { e.stopPropagation(); setRolloverTarget(app); }}
+                          className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-sm uppercase tracking-widest transition-all hover:-translate-y-0.5"
+                          style={{
+                            background: "#0A1F44",
+                            color: "#C9A84C",
+                            border: "2px solid rgba(201,168,76,0.6)",
+                            boxShadow: "0 4px 16px rgba(10,31,68,0.4)",
+                            letterSpacing: "0.08em",
+                          }}>
+                          <RotateCcw size={15} />
+                          RENEW LOAN
+                          <span style={{ fontSize: 11, fontWeight: 400, opacity: 0.65, marginLeft: 4 }}>
+                            Pay {K(interestOnly)} interest only
+                          </span>
+                        </button>
+                      </div>
+                    );
+                  })()}
                 </button>
 
                 {isOpen && (
