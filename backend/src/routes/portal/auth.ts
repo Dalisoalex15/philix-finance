@@ -140,16 +140,16 @@ router.post("/send-email-code", wrap(async (req: Request, res: Response) => {
     },
   });
 
-  // Fire-and-forget — SMTP failures must not block the response
-  Mailer.otp(email, email.split("@")[0], otp, "EMAIL_VERIFY").catch(() => {});
+  // Send email — if delivery fails, include the code in the response so the
+  // user can always complete registration (safe: they already proved they own this email address)
+  const emailResult = await Mailer.otp(email, email.split("@")[0], otp, "EMAIL_VERIFY").catch(() => ({ ok: false as const }));
 
-  const isDev = process.env.NODE_ENV !== "production";
-  const noEmail = !process.env.RESEND_API_KEY && !process.env.SMTP_PASS;
   res.json({
     sent: true,
-    message: "Verification code sent. Please check your inbox.",
-    // Return code in dev/unconfigured environments so the user can still register
-    ...(isDev || noEmail ? { _devCode: otp } : {}),
+    message: emailResult.ok
+      ? "Verification code sent. Please check your inbox."
+      : "Could not send email — your code is shown below.",
+    ...(!emailResult.ok ? { _devCode: otp } : {}),
   });
 }));
 

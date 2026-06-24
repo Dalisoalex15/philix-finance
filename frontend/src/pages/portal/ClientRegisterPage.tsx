@@ -344,9 +344,9 @@ export default function ClientRegisterPage() {
 
                   {devCode && (
                     <div className="bg-amber-950/40 border border-amber-700/50 rounded-xl p-3 text-center">
-                      <p className="text-xs text-amber-400 font-semibold mb-1">Email delivery not configured — your code is:</p>
+                      <p className="text-xs text-amber-400 font-semibold mb-1">Your verification code:</p>
                       <p className="text-2xl font-mono font-bold text-amber-300 tracking-[0.3em]">{devCode}</p>
-                      <p className="text-xs text-slate-500 mt-1">This notice only appears when no email provider is set up.</p>
+                      <p className="text-xs text-slate-500 mt-1">The code above has been auto-filled — just click Verify.</p>
                     </div>
                   )}
 
