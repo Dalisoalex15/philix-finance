@@ -1,4 +1,6 @@
 import "dotenv/config";
+import { validateEnv } from "./lib/validateEnv";
+validateEnv(); // Must run before anything else reads process.env
 import { prisma } from "./lib/prisma";
 import { logger } from "./lib/logger";
 import app from "./app";

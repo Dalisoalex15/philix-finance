@@ -2,9 +2,50 @@ import { Router, Request, Response, NextFunction } from "express";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
+import { z } from "zod";
 import { prisma } from "../../lib/prisma";
 import { AppError } from "../../middleware/errorHandler";
 import { Mailer } from "../../lib/mailer";
+
+// ── Zod schemas ───────────────────────────────────────────────────────────────
+const registerSchema = z.object({
+  firstName:     z.string().min(1).max(60).trim(),
+  lastName:      z.string().min(1).max(60).trim(),
+  email:         z.string().email().max(200).toLowerCase(),
+  phone:         z.string().min(9).max(20).regex(/^[+\d\s()-]+$/, "Invalid phone format"),
+  password:      z.string().min(8).max(128),
+  dateOfBirth:   z.string().optional(),
+  gender:        z.enum(["MALE", "FEMALE"]).optional(),
+  address:       z.string().max(300).optional(),
+  city:          z.string().max(100).optional(),
+  occupation:    z.string().max(100).optional(),
+  employer:      z.string().max(200).optional(),
+  monthlyIncome: z.union([z.number().min(0), z.string()]).optional(),
+  nrcNumber:     z.string().max(30).optional(),
+  referralCode:  z.string().max(20).optional(),
+});
+
+const loginSchema = z.object({
+  email:    z.string().email().toLowerCase(),
+  password: z.string().min(1).max(128),
+});
+
+const otpSchema = z.object({
+  email: z.string().email().toLowerCase(),
+  otp:   z.string().length(6).regex(/^\d{6}$/, "OTP must be 6 digits"),
+  type:  z.enum(["EMAIL_VERIFY", "PASSWORD_RESET", "EMAIL_CHANGE"]).default("EMAIL_VERIFY"),
+});
+
+const emailOnlySchema = z.object({
+  email: z.string().email().toLowerCase(),
+  type:  z.enum(["EMAIL_VERIFY", "PASSWORD_RESET", "EMAIL_CHANGE"]).default("EMAIL_VERIFY"),
+});
+
+const resetPasswordSchema = z.object({
+  email:       z.string().email().toLowerCase(),
+  otp:         z.string().length(6).regex(/^\d{6}$/),
+  newPassword: z.string().min(8).max(128),
+});
 
 const wrap = (fn: (req: Request, res: Response, next: NextFunction) => Promise<unknown>) =>
   (req: Request, res: Response, next: NextFunction) => fn(req, res, next).catch(next);
@@ -45,20 +86,18 @@ function sanitize(a: Record<string, unknown>) {
 
 // ── POST /api/portal/auth/register ────────────────────────────────────────────
 router.post("/register", wrap(async (req: Request, res: Response) => {
+  const parsed = registerSchema.safeParse(req.body);
+  if (!parsed.success) {
+    const first = parsed.error.errors[0];
+    throw new AppError(`${first.path.join(".")}: ${first.message}`, 400);
+  }
   const {
     firstName, lastName, email, phone, password,
     dateOfBirth, gender, address, city,
     occupation, employer, monthlyIncome, nrcNumber, referralCode,
-  } = req.body as Record<string, string>;
+  } = parsed.data;
 
-  if (!firstName || !lastName || !email || !phone || !password)
-    throw new AppError("Required fields missing", 400);
-  if (password.length < 8)
-    throw new AppError("Password must be at least 8 characters", 400);
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
-    throw new AppError("Invalid email address", 400);
-
-  const existing = await prisma.clientPortalAccount.findUnique({ where: { email: email.toLowerCase() } });
+  const existing = await prisma.clientPortalAccount.findUnique({ where: { email } });
   if (existing) throw new AppError("An account with this email already exists", 409);
 
   const passwordHash = await bcrypt.hash(password, 12);
@@ -70,12 +109,12 @@ router.post("/register", wrap(async (req: Request, res: Response) => {
   const account = await prisma.clientPortalAccount.create({
     data: {
       clientNumber,
-      email: email.toLowerCase(),
+      email,
       passwordHash,
       firstName, lastName, phone,
       dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
       gender, address, city, occupation, employer,
-      monthlyIncome: monthlyIncome ? parseFloat(monthlyIncome) : null,
+      monthlyIncome: monthlyIncome ? parseFloat(String(monthlyIncome)) : null,
       nrcNumber,
       status: "PENDING_KYC",
       kycStatus: "NOT_STARTED",
@@ -109,8 +148,9 @@ router.post("/register", wrap(async (req: Request, res: Response) => {
 
 // ── POST /api/portal/auth/verify-otp ─────────────────────────────────────────
 router.post("/verify-otp", wrap(async (req: Request, res: Response) => {
-  const { email, otp, type = "EMAIL_VERIFY" } = req.body;
-  if (!email || !otp) throw new AppError("Email and OTP required", 400);
+  const parsed = otpSchema.safeParse(req.body);
+  if (!parsed.success) throw new AppError("Invalid request: " + parsed.error.errors[0].message, 400);
+  const { email, otp, type } = parsed.data;
 
   const record = await (prisma as any).otpVerification.findFirst({
     where: { email: email.toLowerCase(), type, verified: false },
@@ -160,10 +200,11 @@ router.post("/verify-otp", wrap(async (req: Request, res: Response) => {
 
 // ── POST /api/portal/auth/resend-otp ─────────────────────────────────────────
 router.post("/resend-otp", wrap(async (req: Request, res: Response) => {
-  const { email, type = "EMAIL_VERIFY" } = req.body;
-  if (!email) throw new AppError("Email required", 400);
+  const parsed = emailOnlySchema.safeParse(req.body);
+  if (!parsed.success) throw new AppError("Valid email required", 400);
+  const { email, type } = parsed.data;
 
-  const account = await prisma.clientPortalAccount.findUnique({ where: { email: email.toLowerCase() } });
+  const account = await prisma.clientPortalAccount.findUnique({ where: { email } });
   if (!account) throw new AppError("Account not found", 404);
 
   if (type === "EMAIL_VERIFY" && account.emailVerified) {
@@ -194,10 +235,11 @@ router.post("/resend-otp", wrap(async (req: Request, res: Response) => {
 
 // ── POST /api/portal/auth/forgot-password ─────────────────────────────────────
 router.post("/forgot-password", wrap(async (req: Request, res: Response) => {
-  const { email } = req.body;
-  if (!email) throw new AppError("Email required", 400);
+  const parsed = z.object({ email: z.string().email().toLowerCase() }).safeParse(req.body);
+  if (!parsed.success) throw new AppError("Valid email required", 400);
+  const { email } = parsed.data;
 
-  const account = await prisma.clientPortalAccount.findUnique({ where: { email: email.toLowerCase() } });
+  const account = await prisma.clientPortalAccount.findUnique({ where: { email } });
 
   // Always respond success to avoid email enumeration
   if (account) {
@@ -224,9 +266,9 @@ router.post("/forgot-password", wrap(async (req: Request, res: Response) => {
 
 // ── POST /api/portal/auth/reset-password ──────────────────────────────────────
 router.post("/reset-password", wrap(async (req: Request, res: Response) => {
-  const { email, otp, newPassword } = req.body;
-  if (!email || !otp || !newPassword) throw new AppError("Email, OTP, and new password required", 400);
-  if (newPassword.length < 8) throw new AppError("Password must be at least 8 characters", 400);
+  const parsed = resetPasswordSchema.safeParse(req.body);
+  if (!parsed.success) throw new AppError("Invalid request: " + parsed.error.errors[0].message, 400);
+  const { email, otp, newPassword } = parsed.data;
 
   const record = await (prisma as any).otpVerification.findFirst({
     where: { email: email.toLowerCase(), type: "PASSWORD_RESET", verified: false },
@@ -257,10 +299,11 @@ router.post("/reset-password", wrap(async (req: Request, res: Response) => {
 
 // ── POST /api/portal/auth/login ───────────────────────────────────────────────
 router.post("/login", wrap(async (req: Request, res: Response) => {
-  const { email, password } = req.body;
-  if (!email || !password) throw new AppError("Email and password required", 400);
+  const parsed = loginSchema.safeParse(req.body);
+  if (!parsed.success) throw new AppError("Email and password required", 400);
+  const { email, password } = parsed.data;
 
-  const account = await prisma.clientPortalAccount.findUnique({ where: { email: email.toLowerCase() } });
+  const account = await prisma.clientPortalAccount.findUnique({ where: { email } });
   if (!account) {
     await new Promise(r => setTimeout(r, 300));
     throw new AppError("Invalid email or password", 401);

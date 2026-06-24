@@ -1,7 +1,16 @@
 import { Router, Request, Response } from "express";
+import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { authenticate } from "../middleware/auth";
 import { Mailer, sendEmail, buildBaseHtml } from "../lib/mailer";
+
+const sendClientEmailSchema = z.object({
+  accountId: z.string().min(1),
+  subject:   z.string().min(1).max(200).trim(),
+  body:      z.string().min(1).max(10000).trim(),
+  loanRef:   z.string().max(50).optional(),
+  loanId:    z.string().optional(),
+});
 
 type AsyncHandler = (req: Request, res: Response, next: (err?: unknown) => void) => Promise<unknown>;
 const wrap = (fn: AsyncHandler) => (req: Request, res: Response, next: (err?: unknown) => void) =>
@@ -1206,13 +1215,11 @@ router.post("/email-campaigns", wrap(async (req: Request, res: Response) => {
 // POST /api/admin/send-client-email — compose & send a direct email to one client
 router.post("/send-client-email", wrap(async (req: Request, res: Response) => {
   const user = (req as any).user;
-  const { accountId, subject, body, loanRef, loanId } = req.body as {
-    accountId: string; subject: string; body: string; loanRef?: string; loanId?: string;
-  };
-
-  if (!accountId) return res.status(400).json({ error: "accountId is required" });
-  if (!subject?.trim()) return res.status(400).json({ error: "Subject is required" });
-  if (!body?.trim()) return res.status(400).json({ error: "Message body is required" });
+  const parsed = sendClientEmailSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: parsed.error.errors[0].message });
+  }
+  const { accountId, subject, body, loanRef, loanId } = parsed.data;
 
   const account = await prisma.clientPortalAccount.findUnique({
     where: { id: accountId },

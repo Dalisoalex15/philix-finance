@@ -41,31 +41,90 @@ import aiRoutes from "./routes/ai";
 
 const app = express();
 
-app.use(helmet());
+// ── Security headers ──────────────────────────────────────────────────────────
+app.use(helmet({
+  crossOriginEmbedderPolicy: false,
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc:  ["'self'"],
+      styleSrc:   ["'self'", "'unsafe-inline'"],
+      imgSrc:     ["'self'", "data:", "https:"],
+      connectSrc: ["'self'"],
+      frameSrc:   ["'none'"],
+      objectSrc:  ["'none'"],
+    },
+  },
+  hsts: { maxAge: 31536000, includeSubDomains: true, preload: true },
+}));
+
 app.use(compression());
 
+// ── CORS — only the known frontend domain, never a wildcard ──────────────────
+const ALLOWED_ORIGINS = [
+  process.env.FRONTEND_URL,
+  "http://localhost:3000",
+  "http://localhost:5173",
+  "http://localhost:4173",
+].filter(Boolean) as string[];
+
 app.use(cors({
-  origin: true,
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true); // server-to-server / curl
+    if (ALLOWED_ORIGINS.some(o => origin === o || origin.startsWith(o))) {
+      return callback(null, true);
+    }
+    logger.warn(`CORS blocked: ${origin}`);
+    callback(new Error("Not allowed by CORS"));
+  },
   credentials: true,
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"],
 }));
 
-const limiter = rateLimit({
+// ── Rate limiters ─────────────────────────────────────────────────────────────
+
+// Global: 300 req / 15 min per IP
+const globalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 500,
+  max: 300,
+  standardHeaders: true,
+  legacyHeaders: false,
   message: { error: "Too many requests. Please try again later." },
 });
+
+// Auth (login / register): 15 req / 15 min per IP
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 30,
-  message: { error: "Too many login attempts. Please try again later." },
+  max: 15,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many login attempts. Please try again in 15 minutes." },
 });
 
-app.use(limiter);
+// OTP (send / resend / forgot-password): 5 req / 10 min per IP
+const otpLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many code requests. Please wait 10 minutes before requesting another." },
+});
+
+// Admin direct email send: 30 per hour per IP
+const emailSendLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Email sending limit reached. Please wait before sending more." },
+});
+
+// ── Body parsing — 2 MB max to prevent DoS ────────────────────────────────────
+app.use(globalLimiter);
 app.use(cookieParser());
-app.use(express.json({ limit: "50mb" }));
-app.use(express.urlencoded({ extended: true, limit: "50mb" }));
+app.use(express.json({ limit: "2mb" }));
+app.use(express.urlencoded({ extended: true, limit: "2mb" }));
 
 if (process.env.NODE_ENV !== "test") {
   app.use(morgan("combined", {
@@ -73,6 +132,7 @@ if (process.env.NODE_ENV !== "test") {
   }));
 }
 
+// ── Health check (unauthenticated) ────────────────────────────────────────────
 app.get("/health", async (_req, res) => {
   try {
     await prisma.$queryRaw`SELECT 1`;
@@ -84,35 +144,49 @@ app.get("/health", async (_req, res) => {
 
 app.options("*", cors());
 
-app.use("/api/auth", authLimiter, authRoutes);
-app.use("/api/users", userRoutes);
-app.use("/api/clients", clientRoutes);
-app.use("/api/loans", loanRoutes);
-app.use("/api/collateral", collateralRoutes);
-app.use("/api/payments", paymentRoutes);
-app.use("/api/collections", collectionRoutes);
-app.use("/api/reports", reportRoutes);
-app.use("/api/expenses", expenseRoutes);
-app.use("/api/investors", investorRoutes);
-app.use("/api/tasks", taskRoutes);
+// ── Routes ────────────────────────────────────────────────────────────────────
+// All staff/admin routes enforce authenticate() inside their own router
+app.use("/api/auth",          authLimiter, authRoutes);
+app.use("/api/users",         userRoutes);
+app.use("/api/clients",       clientRoutes);
+app.use("/api/loans",         loanRoutes);
+app.use("/api/collateral",    collateralRoutes);
+app.use("/api/payments",      paymentRoutes);
+app.use("/api/collections",   collectionRoutes);
+app.use("/api/reports",       reportRoutes);
+app.use("/api/expenses",      expenseRoutes);
+app.use("/api/investors",     investorRoutes);
+app.use("/api/tasks",         taskRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/announcements", announcementRoutes);
-app.use("/api/dashboard", dashboardRoutes);
-app.use("/api/documents", documentRoutes);
-app.use("/api/wiki", wikiRoutes);
-app.use("/api/audit", auditRoutes);
-app.use("/api/branches", branchRoutes);
-app.use("/api/recovery", recoveryRoutes);
-app.use("/api/admin", adminRoutes);
-app.use("/api/capital", capitalRoutes);
-app.use("/api/accounting", accountingRoutes);
-app.use("/api/portal/auth", authLimiter, portalAuthRoutes);
-app.use("/api/portal/me", portalMeRoutes);
-app.use("/api/portal/applications", portalApplicationRoutes);
-app.use("/api/portal/kyc", portalKycRoutes);
-app.use("/api/portal/notifications", portalNotificationRoutes);
-app.use("/api/ai", aiRoutes);
+app.use("/api/dashboard",     dashboardRoutes);
+app.use("/api/documents",     documentRoutes);
+app.use("/api/wiki",          wikiRoutes);
+app.use("/api/audit",         auditRoutes);
+app.use("/api/branches",      branchRoutes);
+app.use("/api/recovery",      recoveryRoutes);
+app.use("/api/admin",         adminRoutes);
+app.use("/api/capital",       capitalRoutes);
+app.use("/api/accounting",    accountingRoutes);
+app.use("/api/ai",            aiRoutes);
 
+// Portal — public auth (register/login) under authLimiter;
+// OTP routes also get the stricter otpLimiter mounted before the auth router
+app.use("/api/portal/auth/verify-otp",     otpLimiter);
+app.use("/api/portal/auth/resend-otp",     otpLimiter);
+app.use("/api/portal/auth/forgot-password",otpLimiter);
+app.use("/api/portal/auth",                authLimiter, portalAuthRoutes);
+
+// Portal — authenticated client routes (authenticatePortal enforced inside each router)
+app.use("/api/portal/me",            portalMeRoutes);
+app.use("/api/portal/applications",  portalApplicationRoutes);
+app.use("/api/portal/kyc",           portalKycRoutes);
+app.use("/api/portal/notifications", portalNotificationRoutes);
+
+// Tighter limit on staff email sends
+app.use("/api/admin/send-client-email", emailSendLimiter);
+
+// ── 404 & error handler ───────────────────────────────────────────────────────
 app.use((_req, res) => {
   res.status(404).json({ error: "Route not found" });
 });

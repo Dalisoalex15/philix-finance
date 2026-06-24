@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useAuthStore } from "./store/auth";
+import { useClientAuthStore } from "./store/clientAuth";
+import { clearPortalTokens } from "./lib/api";
 import MainLayout from "./components/layout/MainLayout";
 import UnifiedLoginPage from "./pages/UnifiedLoginPage";
 // Staff portal
@@ -135,6 +137,47 @@ class RouteErrorBoundary extends React.Component<
   }
 }
 
+// Guards the portal — redirects unauthenticated clients to login
+function RequireClientAuth({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated, client } = useClientAuthStore(s => ({ isAuthenticated: s.isAuthenticated, client: s.client }));
+  const logout = useClientAuthStore(s => s.logout);
+  const [hydrated, setHydrated] = useState(() => useClientAuthStore.persist.hasHydrated());
+
+  useEffect(() => {
+    if (useClientAuthStore.persist.hasHydrated()) { setHydrated(true); return; }
+    const unsub = useClientAuthStore.persist.onFinishHydration(() => setHydrated(true));
+    const t = setTimeout(() => setHydrated(true), 300);
+    return () => { unsub(); clearTimeout(t); };
+  }, []);
+
+  // Global listener: if any portal API call returns 401/403 (suspended/blacklisted), log out
+  useEffect(() => {
+    function handleUnauthorized(e: Event) {
+      const detail = (e as CustomEvent).detail;
+      if (detail?.code === "ACCOUNT_SUSPENDED" || detail?.code === "ACCOUNT_BLACKLISTED") {
+        clearPortalTokens();
+        logout();
+      }
+    }
+    window.addEventListener("philix:portal-unauthorized", handleUnauthorized);
+    return () => window.removeEventListener("philix:portal-unauthorized", handleUnauthorized);
+  }, [logout]);
+
+  if (!hydrated) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (!isAuthenticated || !client) {
+    return <Navigate to="/portal/login" replace />;
+  }
+
+  return <>{children}</>;
+}
+
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const isAuthenticated = useAuthStore(s => s.isAuthenticated);
   const [hydrated, setHydrated] = useState(() => useAuthStore.persist.hasHydrated());
@@ -171,20 +214,26 @@ export default function App() {
         <Route path="/staff" element={<Navigate to="/login" replace />} />
         <Route path="/portal/register" element={<ClientRegisterPage />} />
         <Route path="/portal/verify-email" element={<OtpVerificationPage />} />
-        <Route path="/portal" element={<RouteErrorBoundary><ClientPortalLayout /></RouteErrorBoundary>}>
+        <Route path="/portal" element={
+          <RouteErrorBoundary>
+            <RequireClientAuth>
+              <ClientPortalLayout />
+            </RequireClientAuth>
+          </RouteErrorBoundary>
+        }>
           <Route index element={<Navigate to="/portal/dashboard" replace />} />
-          <Route path="dashboard" element={<RouteErrorBoundary><ClientDashboardPage /></RouteErrorBoundary>} />
-          <Route path="apply" element={<RouteErrorBoundary><LoanApplicationPage /></RouteErrorBoundary>} />
-          <Route path="loans" element={<RouteErrorBoundary><MyLoansPage /></RouteErrorBoundary>} />
-          <Route path="collateral" element={<RouteErrorBoundary><CollateralSubmissionPage /></RouteErrorBoundary>} />
-          <Route path="kyc" element={<RouteErrorBoundary><KYCSubmissionPage /></RouteErrorBoundary>} />
-          <Route path="notifications" element={<RouteErrorBoundary><ClientNotificationsPage /></RouteErrorBoundary>} />
-          <Route path="profile" element={<RouteErrorBoundary><ClientProfilePage /></RouteErrorBoundary>} />
-          <Route path="calculator" element={<RouteErrorBoundary><ClientLoanCalculatorPage /></RouteErrorBoundary>} />
-          <Route path="statement" element={<RouteErrorBoundary><StatementPage /></RouteErrorBoundary>} />
-          <Route path="referral" element={<RouteErrorBoundary><ReferralPage /></RouteErrorBoundary>} />
-          <Route path="support" element={<RouteErrorBoundary><SupportPage /></RouteErrorBoundary>} />
-          <Route path="eligibility" element={<RouteErrorBoundary><EligibilityPage /></RouteErrorBoundary>} />
+          <Route path="dashboard"    element={<RouteErrorBoundary><ClientDashboardPage /></RouteErrorBoundary>} />
+          <Route path="apply"        element={<RouteErrorBoundary><LoanApplicationPage /></RouteErrorBoundary>} />
+          <Route path="loans"        element={<RouteErrorBoundary><MyLoansPage /></RouteErrorBoundary>} />
+          <Route path="collateral"   element={<RouteErrorBoundary><CollateralSubmissionPage /></RouteErrorBoundary>} />
+          <Route path="kyc"          element={<RouteErrorBoundary><KYCSubmissionPage /></RouteErrorBoundary>} />
+          <Route path="notifications"element={<RouteErrorBoundary><ClientNotificationsPage /></RouteErrorBoundary>} />
+          <Route path="profile"      element={<RouteErrorBoundary><ClientProfilePage /></RouteErrorBoundary>} />
+          <Route path="calculator"   element={<RouteErrorBoundary><ClientLoanCalculatorPage /></RouteErrorBoundary>} />
+          <Route path="statement"    element={<RouteErrorBoundary><StatementPage /></RouteErrorBoundary>} />
+          <Route path="referral"     element={<RouteErrorBoundary><ReferralPage /></RouteErrorBoundary>} />
+          <Route path="support"      element={<RouteErrorBoundary><SupportPage /></RouteErrorBoundary>} />
+          <Route path="eligibility"  element={<RouteErrorBoundary><EligibilityPage /></RouteErrorBoundary>} />
           <Route path="credit-score" element={<RouteErrorBoundary><CreditScorePage /></RouteErrorBoundary>} />
         </Route>
         <Route

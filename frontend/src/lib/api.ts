@@ -3,7 +3,7 @@
 const BASE: string = (import.meta.env.VITE_API_URL as string | undefined) ?? "/api";
 
 async function request<T>(path: string, opts: RequestInit = {}): Promise<T> {
-  const token = localStorage.getItem("philix_portal_token");
+  let token = localStorage.getItem("philix_portal_token");
   const res = await fetch(`${BASE}${path}`, {
     headers: {
       "Content-Type": "application/json",
@@ -14,6 +14,44 @@ async function request<T>(path: string, opts: RequestInit = {}): Promise<T> {
   });
 
   const data = await res.json().catch(() => ({}));
+
+  // Token expired — attempt refresh once, then log out
+  if (res.status === 401 && data.code === "TOKEN_EXPIRED") {
+    const refreshToken = localStorage.getItem("philix_portal_refresh");
+    if (refreshToken) {
+      const rr = await fetch(`${BASE}/portal/auth/refresh`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ refreshToken }),
+      });
+      const rd = await rr.json().catch(() => ({}));
+      if (rr.ok && rd.accessToken) {
+        localStorage.setItem("philix_portal_token", rd.accessToken);
+        token = rd.accessToken;
+        const retry = await fetch(`${BASE}${path}`, {
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          ...opts,
+        });
+        const retryData = await retry.json().catch(() => ({}));
+        if (!retry.ok) throw new Error(retryData.message || retryData.error || `Request failed ${retry.status}`);
+        return retryData as T;
+      }
+    }
+    // Refresh failed — force logout via event
+    localStorage.removeItem("philix_portal_token");
+    localStorage.removeItem("philix_portal_refresh");
+    window.dispatchEvent(new CustomEvent("philix:portal-unauthorized", { detail: { code: "TOKEN_EXPIRED" } }));
+    throw new Error("Session expired. Please log in again.");
+  }
+
+  // Suspended / blacklisted
+  if (res.status === 403 && (data.code === "ACCOUNT_SUSPENDED" || data.code === "ACCOUNT_BLACKLISTED")) {
+    localStorage.removeItem("philix_portal_token");
+    localStorage.removeItem("philix_portal_refresh");
+    window.dispatchEvent(new CustomEvent("philix:portal-unauthorized", { detail: { code: data.code } }));
+    throw new Error(data.message || data.error || "Access denied");
+  }
+
   if (!res.ok) throw new Error(data.message || data.error || `Request failed ${res.status}`);
   return data as T;
 }
