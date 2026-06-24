@@ -519,7 +519,9 @@ router.get("/payment-submissions", wrap(async (_req: Request, res: Response) => 
 // PATCH /api/admin/payment-submissions/:id — approve or reject
 router.patch("/payment-submissions/:id", wrap(async (req: Request, res: Response) => {
   const user = (req as any).user;
-  const { status, rejectedReason } = req.body as { status: string; rejectedReason?: string };
+  const { status, rejectedReason, amountReceived } = req.body as {
+    status: string; rejectedReason?: string; amountReceived?: number;
+  };
   if (!["APPROVED", "REJECTED"].includes(status)) {
     return res.status(400).json({ error: "status must be APPROVED or REJECTED" });
   }
@@ -546,6 +548,8 @@ router.patch("/payment-submissions/:id", wrap(async (req: Request, res: Response
         reviewedBy: user.firstName && user.lastName ? `${user.firstName} ${user.lastName}` : user.email,
         reviewedAt: new Date(),
         rejectedReason: rejectedReason || null,
+        // Override stored amount with what was actually received, if staff provides it
+        ...(typeof amountReceived === "number" && amountReceived > 0 ? { amount: amountReceived } : {}),
       },
     }),
   ]);

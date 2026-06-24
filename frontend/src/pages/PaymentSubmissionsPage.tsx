@@ -44,6 +44,7 @@ export default function PaymentSubmissionsPage() {
   const [rejectReason, setRejectReason] = useState("");
   const [showReject, setShowReject] = useState(false);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
+  const [amountReceived, setAmountReceived] = useState<string>("");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -55,6 +56,13 @@ export default function PaymentSubmissionsPage() {
 
   useEffect(() => { load(); }, [load]);
 
+  // Pre-fill amount received whenever a submission is opened
+  useEffect(() => {
+    setAmountReceived(selected?.amount != null ? String(selected.amount) : "");
+    setShowReject(false);
+    setRejectReason("");
+  }, [selected?.id]);
+
   function showToast(msg: string, type: "success" | "error" = "success") {
     setToast({ msg, type });
     setTimeout(() => setToast(null), 4000);
@@ -63,20 +71,28 @@ export default function PaymentSubmissionsPage() {
   async function approve(id: string) {
     setActionLoading(id);
     const sub = selected;
+    const received = amountReceived !== "" ? parseFloat(amountReceived) : sub?.amount ?? null;
     try {
       const r = await fetch(`${API}/admin/payment-submissions/${id}`, {
         method: "PATCH", headers: authH(),
-        body: JSON.stringify({ status: "APPROVED" }),
+        body: JSON.stringify({
+          status: "APPROVED",
+          ...(received != null ? { amountReceived: received } : {}),
+        }),
       });
       if (r.ok) {
-        // Optimistic in-place update — no full reload needed
         const now = new Date().toISOString();
         setSubmissions(prev => prev.map(s =>
-          s.id === id ? { ...s, status: "APPROVED" as const, reviewedAt: now } : s
+          s.id === id
+            ? { ...s, status: "APPROVED" as const, reviewedAt: now, amount: received ?? s.amount }
+            : s
         ));
         setSelected(null);
-        showToast(`✅ Payment approved${sub ? ` for ${sub.application.account.firstName} ${sub.application.account.lastName}` : ""}${sub?.amount ? ` — ${K(sub.amount)}` : ""}`);
-        load(); // background sync
+        showToast(
+          `✅ Payment approved${sub ? ` for ${sub.application.account.firstName} ${sub.application.account.lastName}` : ""}` +
+          `${received != null ? ` — ${K(received)}` : ""}`
+        );
+        load();
       } else {
         showToast("Failed to approve. Please try again.", "error");
       }
@@ -289,12 +305,35 @@ export default function PaymentSubmissionsPage() {
 
             {selected.status === "PENDING" && (
               <div className="flex-shrink-0 px-6 py-4 border-t border-warm-200 space-y-3">
+
+                {/* Amount Received field */}
+                <div>
+                  <label className="block text-[11px] font-bold text-navy-500 uppercase tracking-wider mb-1.5">
+                    Amount Received (ZMW)
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-navy-400 font-bold text-sm">K</span>
+                    <input
+                      type="number"
+                      value={amountReceived}
+                      onChange={e => setAmountReceived(e.target.value)}
+                      placeholder={selected.amount != null ? String(selected.amount) : "Enter amount"}
+                      className="w-full pl-7 pr-4 py-2.5 border border-warm-300 rounded-xl text-sm font-semibold text-navy-800 focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-200"
+                    />
+                  </div>
+                  {selected.amount != null && amountReceived !== "" && parseFloat(amountReceived) !== selected.amount && (
+                    <p className="text-[11px] mt-1 text-amber-600 font-medium">
+                      ⚠ Client submitted {K(selected.amount)} — you are recording {K(parseFloat(amountReceived) || 0)} as received. The difference will be reflected in the loan balance.
+                    </p>
+                  )}
+                </div>
+
                 {!showReject ? (
                   <div className="flex gap-3">
                     <button onClick={() => approve(selected.id)} disabled={actionLoading === selected.id}
                       className="flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-semibold bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl disabled:opacity-50">
                       {actionLoading === selected.id ? <Loader2 size={15} className="animate-spin" /> : <CheckCircle size={15} />}
-                      {actionLoading === selected.id ? "Approving…" : "Approve Payment"}
+                      {actionLoading === selected.id ? "Approving…" : `Approve — ${K(parseFloat(amountReceived) || selected.amount || 0)} Received`}
                     </button>
                     <button onClick={() => setShowReject(true)}
                       className="flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-semibold bg-red-100 hover:bg-red-200 text-red-700 border border-red-200 rounded-xl">
@@ -328,10 +367,17 @@ export default function PaymentSubmissionsPage() {
             {selected.status !== "PENDING" && (
               <div className={`flex-shrink-0 px-6 py-4 border-t ${selected.status === "APPROVED" ? "bg-emerald-50 border-emerald-200" : "bg-red-50 border-red-200"}`}>
                 <div className="flex items-center gap-2 text-sm font-semibold">
-                  {selected.status === "APPROVED"
-                    ? <><CheckCircle size={15} className="text-emerald-600" /><span className="text-emerald-700">Payment approved by {selected.reviewedBy}</span></>
-                    : <><XCircle size={15} className="text-red-600" /><span className="text-red-700">Rejected by {selected.reviewedBy}</span></>
-                  }
+                  {selected.status === "APPROVED" ? (
+                    <>
+                      <CheckCircle size={15} className="text-emerald-600" />
+                      <span className="text-emerald-700">
+                        Approved by {selected.reviewedBy}
+                        {selected.amount != null && <> — <span className="font-black">{K(selected.amount)}</span> received</>}
+                      </span>
+                    </>
+                  ) : (
+                    <><XCircle size={15} className="text-red-600" /><span className="text-red-700">Rejected by {selected.reviewedBy}</span></>
+                  )}
                 </div>
               </div>
             )}
