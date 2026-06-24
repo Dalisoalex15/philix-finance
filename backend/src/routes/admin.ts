@@ -272,7 +272,7 @@ router.get("/portal-accounts/:id", wrap(async (req: Request, res: Response) => {
           status: true, createdAt: true, reviewedAt: true,
         },
       },
-      kycDocuments: { select: { id: true, docType: true, uploadedAt: true } },
+      kycDocuments: { select: { id: true, docType: true, fileName: true, fileUrl: true, mimeType: true, uploadedAt: true } },
       notifications: { orderBy: { createdAt: "desc" }, take: 10 },
     },
   });

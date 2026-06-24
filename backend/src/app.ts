@@ -75,7 +75,9 @@ app.use(cors({
       return callback(null, true);
     }
     logger.warn(`CORS blocked: ${origin}`);
-    callback(new Error("Not allowed by CORS"));
+    const err = new Error("Not allowed by CORS") as Error & { status: number };
+    err.status = 403;
+    callback(err);
   },
   credentials: true,
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
