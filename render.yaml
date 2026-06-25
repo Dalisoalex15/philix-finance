@@ -18,7 +18,7 @@ services:
       - key: JWT_REFRESH_SECRET
         generateValue: true
       - key: FRONTEND_URL
-        value: https://philixfinance.vercel.app
+        value: https://philix-finance.vercel.app
       - key: ANTHROPIC_API_KEY
         sync: false
       - key: RESEND_API_KEY
