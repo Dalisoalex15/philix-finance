@@ -1,38 +1,27 @@
-import { useState, useRef, useEffect } from "react";
+import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   CheckCircle, Eye, EyeOff, ArrowLeft, User, Phone,
-  Briefcase, Lock, ShieldCheck, RefreshCw, Mail, Send,
+  Briefcase, Lock, ShieldCheck, Mail, RefreshCw,
 } from "lucide-react";
 import PhilixLogo from "../../components/ui/PhilixLogo";
 import { useClientAuthStore } from "../../store/clientAuth";
 import { savePortalTokens, portalApi } from "../../lib/api";
 
-// Steps: 0=Email verify, 1=Personal, 2=Identity, 3=Employment, 4=Security
-const STEPS = ["Verify Email", "Personal", "Identity", "Employment", "Security"];
-const STEP_ICONS = [Mail, User, ShieldCheck, Briefcase, Lock];
+// Steps: 0=Personal, 1=Identity, 2=Employment, 3=Security
+const STEPS = ["Personal", "Identity", "Employment", "Security"];
+const STEP_ICONS = [User, ShieldCheck, Briefcase, Lock];
 
 export default function ClientRegisterPage() {
   const navigate   = useNavigate();
   const setClient  = useClientAuthStore(s => s.setClient);
 
-  const [step, setStep]           = useState(0);
+  const [step, setStep]             = useState(0);
   const [submitting, setSubmitting] = useState(false);
-  const [apiError, setApiError]   = useState("");
+  const [apiError, setApiError]     = useState("");
 
-  // ── Step 0: email verification ──────────────────────────────────────────────
-  const [email, setEmail]               = useState("");
-  const [emailSent, setEmailSent]       = useState(false);
-  const [emailProofToken, setEmailProofToken] = useState("");
-  const [sendingCode, setSendingCode]   = useState(false);
-  const [digits, setDigits]             = useState(["", "", "", "", "", ""]);
-  const [otpError, setOtpError]         = useState("");
-  const [verifying, setVerifying]       = useState(false);
-  const [resending, setResending]       = useState(false);
-  const [countdown, setCountdown]       = useState(0);
-  const otpRefs = useRef<(HTMLInputElement | null)[]>([]);
-
-  // ── Step 1: personal ────────────────────────────────────────────────────────
+  // ── Step 0: personal ────────────────────────────────────────────────────────
+  const [email, setEmail]           = useState("");
   const [firstName, setFirstName]   = useState("");
   const [lastName, setLastName]     = useState("");
   const [phone, setPhone]           = useState("");
@@ -41,130 +30,31 @@ export default function ClientRegisterPage() {
   const [address, setAddress]       = useState("");
   const [city, setCity]             = useState("");
 
-  // ── Step 2: identity ────────────────────────────────────────────────────────
-  const [nrcNumber, setNrcNumber]   = useState("");
+  // ── Step 1: identity ────────────────────────────────────────────────────────
+  const [nrcNumber, setNrcNumber]     = useState("");
   const [referralCode, setReferralCode] = useState("");
 
-  // ── Step 3: employment ──────────────────────────────────────────────────────
-  const [occupation, setOccupation] = useState("");
-  const [employer, setEmployer]     = useState("");
+  // ── Step 2: employment ──────────────────────────────────────────────────────
+  const [occupation, setOccupation]     = useState("");
+  const [employer, setEmployer]         = useState("");
   const [monthlyIncome, setMonthlyIncome] = useState("");
 
-  // ── Step 4: security ────────────────────────────────────────────────────────
-  const [password, setPassword]     = useState("");
-  const [confirm, setConfirm]       = useState("");
-  const [showPass, setShowPass]     = useState(false);
-  const [agreed, setAgreed]         = useState(false);
+  // ── Step 3: security ────────────────────────────────────────────────────────
+  const [password, setPassword]   = useState("");
+  const [confirm, setConfirm]     = useState("");
+  const [showPass, setShowPass]   = useState(false);
+  const [agreed, setAgreed]       = useState(false);
 
-  // ── Countdown timer ─────────────────────────────────────────────────────────
-  useEffect(() => {
-    if (countdown <= 0) return;
-    const t = setTimeout(() => setCountdown(c => c - 1), 1000);
-    return () => clearTimeout(t);
-  }, [countdown]);
-
-  const [devCode, setDevCode] = useState("");
-
-  // ── Step 0a: send code ──────────────────────────────────────────────────────
-  async function handleSendCode() {
-    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      setApiError("Please enter a valid email address.");
-      return;
-    }
-    setSendingCode(true);
-    setApiError("");
-    setOtpError("");
-    setDevCode("");
-    try {
-      const res = await portalApi.sendEmailCode(email) as { sent: boolean; message: string; _devCode?: string };
-      if (res._devCode) {
-        setDevCode(res._devCode);
-        // auto-fill the digits so the user doesn't have to type
-        setDigits(res._devCode.split(""));
-      }
-      setEmailSent(true);
-      setCountdown(60);
-      setTimeout(() => otpRefs.current[0]?.focus(), 100);
-    } catch (e: unknown) {
-      setApiError(e instanceof Error ? e.message : "Failed to send code. Try again.");
-    } finally {
-      setSendingCode(false);
-    }
-  }
-
-  // ── Step 0b: resend ─────────────────────────────────────────────────────────
-  async function handleResend() {
-    if (countdown > 0 || resending) return;
-    setResending(true);
-    setOtpError("");
-    setDevCode("");
-    try {
-      const res = await portalApi.sendEmailCode(email) as { sent: boolean; message: string; _devCode?: string };
-      if (res._devCode) {
-        setDevCode(res._devCode);
-        setDigits(res._devCode.split(""));
-      } else {
-        setDigits(["", "", "", "", "", ""]);
-      }
-      setCountdown(60);
-      setTimeout(() => otpRefs.current[0]?.focus(), 100);
-    } catch (e: unknown) {
-      setOtpError(e instanceof Error ? e.message : "Failed to resend. Try again.");
-    } finally {
-      setResending(false);
-    }
-  }
-
-  // ── Step 0c: OTP digit input helpers ────────────────────────────────────────
-  function handleDigit(idx: number, value: string) {
-    if (!/^\d?$/.test(value)) return;
-    const next = [...digits];
-    next[idx] = value;
-    setDigits(next);
-    setOtpError("");
-    if (value && idx < 5) otpRefs.current[idx + 1]?.focus();
-  }
-
-  function handleDigitKey(idx: number, e: React.KeyboardEvent) {
-    if (e.key === "Backspace" && !digits[idx] && idx > 0) {
-      otpRefs.current[idx - 1]?.focus();
-    }
-  }
-
-  function handlePaste(e: React.ClipboardEvent) {
-    e.preventDefault();
-    const chars = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 6).split("");
-    setDigits(chars.concat(Array(6 - chars.length).fill("")));
-    if (chars.length > 0) otpRefs.current[Math.min(chars.length, 5)]?.focus();
-  }
-
-  // ── Step 0d: verify the code ─────────────────────────────────────────────────
-  async function handleVerifyCode() {
-    const code = digits.join("");
-    if (code.length !== 6) { setOtpError("Enter all 6 digits."); return; }
-    setVerifying(true);
-    setOtpError("");
-    try {
-      const result = await portalApi.confirmEmailCode(email, code);
-      setEmailProofToken(result.emailProofToken);
-      // Advance to personal info step
-      setStep(1);
-    } catch (e: unknown) {
-      setOtpError(e instanceof Error ? e.message : "Incorrect code. Try again.");
-    } finally {
-      setVerifying(false);
-    }
-  }
-
-  // ── Step 1 validation ────────────────────────────────────────────────────────
+  // ── Step 0 validation ────────────────────────────────────────────────────────
   function validatePersonal(): string | null {
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return "A valid email address is required.";
     if (!firstName.trim()) return "First name is required.";
     if (!lastName.trim())  return "Last name is required.";
     if (!phone.trim() || phone.length < 9) return "A valid phone number is required.";
     return null;
   }
 
-  // ── Step 4: final submit ─────────────────────────────────────────────────────
+  // ── Final submit ─────────────────────────────────────────────────────────────
   async function handleSubmit() {
     if (!password || password.length < 8) {
       setApiError("Password must be at least 8 characters.");
@@ -194,7 +84,6 @@ export default function ClientRegisterPage() {
         employer: employer || undefined,
         monthlyIncome: monthlyIncome ? parseFloat(monthlyIncome) : undefined,
         password,
-        emailProofToken,
       });
       savePortalTokens(result.accessToken, result.refreshToken);
       setClient(result.account);
@@ -209,7 +98,7 @@ export default function ClientRegisterPage() {
   // ── Step navigation ──────────────────────────────────────────────────────────
   function goNext() {
     setApiError("");
-    if (step === 1) {
+    if (step === 0) {
       const err = validatePersonal();
       if (err) { setApiError(err); return; }
     }
@@ -218,22 +107,13 @@ export default function ClientRegisterPage() {
 
   function goBack() {
     setApiError("");
-    if (step === 1) {
-      // Going back to email step resets verification state
-      setEmailSent(false);
-      setDigits(["", "", "", "", "", ""]);
-      setEmailProofToken("");
-      setCountdown(0);
-    }
     setStep(s => s - 1);
   }
 
-  // ── Progress bar ─────────────────────────────────────────────────────────────
   const progress = Math.round((step / (STEPS.length - 1)) * 100);
 
   return (
     <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center py-12 px-4">
-      {/* Logo */}
       <div className="mb-8">
         <PhilixLogo size="lg" />
       </div>
@@ -257,9 +137,6 @@ export default function ClientRegisterPage() {
                   ${done ? "text-amber-400" : active ? "text-amber-400" : "text-slate-600"}`}>
                   {label}
                 </span>
-                {i < STEPS.length - 1 && (
-                  <div className={`hidden sm:block absolute`} />
-                )}
               </div>
             );
           })}
@@ -276,166 +153,27 @@ export default function ClientRegisterPage() {
         {/* Card */}
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-8">
 
-          {/* ── STEP 0: Email verification ───────────────────────────────────── */}
+          {/* ── STEP 0: Personal info ─────────────────────────────────────────── */}
           {step === 0 && (
-            <div className="space-y-6">
+            <div className="space-y-5">
               <div>
-                <h2 className="text-xl font-bold text-white">Verify your email</h2>
-                <p className="text-slate-400 text-sm mt-1">
-                  We'll send a 6-digit code to confirm your email before you continue.
-                </p>
+                <h2 className="text-xl font-bold text-white">Create your account</h2>
+                <p className="text-slate-400 text-sm mt-1">Enter your details to get started.</p>
               </div>
 
-              {!emailSent ? (
-                /* Email input form */
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-slate-300 mb-1.5">
-                      Email address
-                    </label>
-                    <div className="relative">
-                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
-                      <input
-                        type="email"
-                        value={email}
-                        onChange={e => { setEmail(e.target.value); setApiError(""); }}
-                        onKeyDown={e => e.key === "Enter" && handleSendCode()}
-                        placeholder="you@example.com"
-                        className="w-full bg-slate-800 border border-slate-700 rounded-xl pl-10 pr-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:border-amber-500 transition-colors"
-                        autoFocus
-                        autoComplete="email"
-                      />
-                    </div>
-                  </div>
-
-                  {apiError && (
-                    <p className="text-red-400 text-sm bg-red-950/40 border border-red-900/50 rounded-lg px-3 py-2">
-                      {apiError}
-                    </p>
-                  )}
-
-                  <button
-                    onClick={handleSendCode}
-                    disabled={sendingCode || !email}
-                    className="w-full bg-amber-500 hover:bg-amber-400 disabled:opacity-50 disabled:cursor-not-allowed text-slate-950 font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition-colors"
-                  >
-                    {sendingCode ? (
-                      <><RefreshCw size={16} className="animate-spin" /> Sending…</>
-                    ) : (
-                      <><Send size={16} /> Send verification code</>
-                    )}
-                  </button>
-                </div>
-              ) : (
-                /* OTP input form */
-                <div className="space-y-5">
-                  <div className="bg-slate-800/60 border border-slate-700 rounded-xl p-4">
-                    <div className="flex items-center gap-2 text-sm text-slate-300">
-                      <Mail size={14} className="text-amber-400 shrink-0" />
-                      <span>Code sent to <span className="text-white font-medium">{email}</span></span>
-                    </div>
-                    <button
-                      onClick={() => { setEmailSent(false); setOtpError(""); setApiError(""); setDigits(["","","","","",""]); setDevCode(""); }}
-                      className="mt-2 text-xs text-amber-500 hover:text-amber-400"
-                    >
-                      Use a different email
-                    </button>
-                  </div>
-
-                  {devCode && (
-                    <div className="bg-amber-950/40 border border-amber-700/50 rounded-xl p-3 text-center">
-                      <p className="text-xs text-amber-400 font-semibold mb-1">Your verification code:</p>
-                      <p className="text-2xl font-mono font-bold text-amber-300 tracking-[0.3em]">{devCode}</p>
-                      <p className="text-xs text-slate-500 mt-1">The code above has been auto-filled — just click Verify.</p>
-                    </div>
-                  )}
-
-                  <div>
-                    <label className="block text-sm font-medium text-slate-300 mb-3 text-center">
-                      Enter 6-digit code
-                    </label>
-                    <div className="flex gap-2 justify-center" onPaste={handlePaste}>
-                      {digits.map((d, i) => (
-                        <input
-                          key={i}
-                          ref={el => { otpRefs.current[i] = el; }}
-                          type="text"
-                          inputMode="numeric"
-                          maxLength={1}
-                          value={d}
-                          onChange={e => handleDigit(i, e.target.value)}
-                          onKeyDown={e => handleDigitKey(i, e)}
-                          className={`w-12 h-14 text-center text-xl font-bold rounded-xl border-2 bg-slate-800 text-white focus:outline-none transition-all
-                            ${d ? "border-amber-500" : "border-slate-700"}
-                            focus:border-amber-400`}
-                        />
-                      ))}
-                    </div>
-                  </div>
-
-                  {otpError && (
-                    <p className="text-red-400 text-sm bg-red-950/40 border border-red-900/50 rounded-lg px-3 py-2 text-center">
-                      {otpError}
-                    </p>
-                  )}
-
-                  <button
-                    onClick={handleVerifyCode}
-                    disabled={verifying || digits.join("").length !== 6}
-                    className="w-full bg-amber-500 hover:bg-amber-400 disabled:opacity-50 disabled:cursor-not-allowed text-slate-950 font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition-colors"
-                  >
-                    {verifying ? (
-                      <><RefreshCw size={16} className="animate-spin" /> Verifying…</>
-                    ) : (
-                      <><CheckCircle size={16} /> Verify &amp; continue</>
-                    )}
-                  </button>
-
-                  {/* Resend */}
-                  <div className="text-center">
-                    {countdown > 0 ? (
-                      <p className="text-sm text-slate-500">
-                        Resend in <span className="text-amber-400 font-medium tabular-nums">{countdown}s</span>
-                      </p>
-                    ) : (
-                      <button
-                        onClick={handleResend}
-                        disabled={resending}
-                        className="text-sm text-amber-500 hover:text-amber-400 flex items-center gap-1.5 mx-auto"
-                      >
-                        <RefreshCw size={13} className={resending ? "animate-spin" : ""} />
-                        {resending ? "Resending…" : "Resend code"}
-                      </button>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* ── STEP 1: Personal info ─────────────────────────────────────────── */}
-          {step === 1 && (
-            <div className="space-y-6">
               <div>
-                <h2 className="text-xl font-bold text-white">Personal information</h2>
-                <p className="text-slate-400 text-sm mt-1">Tell us a bit about yourself.</p>
-              </div>
-
-              {/* Email — locked, already verified */}
-              <div>
-                <label className="block text-sm font-medium text-slate-300 mb-1.5">Email</label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
-                  <input
-                    type="email"
-                    value={email}
-                    readOnly
-                    className="w-full bg-slate-800/40 border border-slate-700 rounded-xl pl-10 pr-4 py-3 text-slate-400 cursor-not-allowed"
-                  />
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-emerald-400 font-medium flex items-center gap-1">
-                    <CheckCircle size={12} /> Verified
-                  </span>
-                </div>
+                <label className="block text-sm font-medium text-slate-300 mb-1.5">
+                  <Mail size={13} className="inline mr-1.5" />Email address *
+                </label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={e => { setEmail(e.target.value); setApiError(""); }}
+                  placeholder="you@example.com"
+                  autoFocus
+                  autoComplete="email"
+                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:border-amber-500 transition-colors"
+                />
               </div>
 
               <div className="grid grid-cols-2 gap-4">
@@ -498,8 +236,8 @@ export default function ClientRegisterPage() {
             </div>
           )}
 
-          {/* ── STEP 2: Identity ──────────────────────────────────────────────── */}
-          {step === 2 && (
+          {/* ── STEP 1: Identity ──────────────────────────────────────────────── */}
+          {step === 1 && (
             <div className="space-y-6">
               <div>
                 <h2 className="text-xl font-bold text-white">Identity details</h2>
@@ -523,8 +261,8 @@ export default function ClientRegisterPage() {
             </div>
           )}
 
-          {/* ── STEP 3: Employment ───────────────────────────────────────────── */}
-          {step === 3 && (
+          {/* ── STEP 2: Employment ───────────────────────────────────────────── */}
+          {step === 2 && (
             <div className="space-y-6">
               <div>
                 <h2 className="text-xl font-bold text-white">Employment &amp; income</h2>
@@ -553,8 +291,8 @@ export default function ClientRegisterPage() {
             </div>
           )}
 
-          {/* ── STEP 4: Security ─────────────────────────────────────────────── */}
-          {step === 4 && (
+          {/* ── STEP 3: Security ─────────────────────────────────────────────── */}
+          {step === 3 && (
             <div className="space-y-6">
               <div>
                 <h2 className="text-xl font-bold text-white">Create your password</h2>
@@ -601,7 +339,6 @@ export default function ClientRegisterPage() {
                 )}
               </div>
 
-              {/* Password strength bar */}
               {password && (
                 <div className="space-y-1.5">
                   <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden">
@@ -642,7 +379,7 @@ export default function ClientRegisterPage() {
 
           {/* ── Navigation buttons ───────────────────────────────────────────── */}
           <div className={`mt-8 flex gap-3 ${step === 0 ? "justify-end" : "justify-between"}`}>
-            {step > 0 && step < STEPS.length && (
+            {step > 0 && (
               <button
                 onClick={goBack}
                 disabled={submitting}
@@ -652,8 +389,7 @@ export default function ClientRegisterPage() {
               </button>
             )}
 
-            {/* Steps 1–3: Next button */}
-            {step >= 1 && step < 4 && (
+            {step < 3 && (
               <button
                 onClick={goNext}
                 className="flex-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-3 rounded-xl transition-colors"
@@ -662,8 +398,7 @@ export default function ClientRegisterPage() {
               </button>
             )}
 
-            {/* Step 4: Submit */}
-            {step === 4 && (
+            {step === 3 && (
               <button
                 onClick={handleSubmit}
                 disabled={submitting || !agreed || !password || password !== confirm}
@@ -679,7 +414,6 @@ export default function ClientRegisterPage() {
           </div>
         </div>
 
-        {/* Login link */}
         <p className="text-center text-slate-500 text-sm mt-6">
           Already have an account?{" "}
           <Link to="/portal/login" className="text-amber-500 hover:text-amber-400 font-medium">Sign in</Link>

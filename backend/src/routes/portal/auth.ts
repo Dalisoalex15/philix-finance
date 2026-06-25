@@ -13,7 +13,6 @@ const registerSchema = z.object({
   email:              z.string().email().max(200).toLowerCase(),
   phone:              z.string().min(9).max(20).regex(/^[+\d\s()-]+$/, "Invalid phone format"),
   password:           z.string().min(8).max(128),
-  emailProofToken:    z.string().min(1, "Email must be verified before registration"),
   dateOfBirth:        z.string().optional(),
   gender:             z.enum(["MALE", "FEMALE"]).optional(),
   address:            z.string().max(300).optional(),
@@ -213,16 +212,9 @@ router.post("/register", wrap(async (req: Request, res: Response) => {
   }
   const {
     firstName, lastName, email, phone, password,
-    emailProofToken,
     dateOfBirth, gender, address, city,
     occupation, employer, monthlyIncome, nrcNumber, referralCode,
   } = parsed.data;
-
-  // Validate the proof token and confirm it was issued for this email
-  const provenEmail = verifyEmailProofToken(emailProofToken);
-  if (provenEmail !== email) {
-    throw new AppError("Email mismatch: the verified email does not match the registration email.", 400);
-  }
 
   const existing = await prisma.clientPortalAccount.findUnique({ where: { email } });
   if (existing) throw new AppError("An account with this email already exists", 409);
@@ -246,7 +238,7 @@ router.post("/register", wrap(async (req: Request, res: Response) => {
       nrcNumber,
       status: "PENDING_KYC",
       kycStatus: "NOT_STARTED",
-      emailVerified: true, // already confirmed by emailProofToken
+      emailVerified: false,
       referredByCode: referralCode ? referralCode.trim().toUpperCase() : null,
     },
   });
