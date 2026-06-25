@@ -192,15 +192,15 @@ export default function LoanProductsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60">
-                {[
-                  ["Min Amount", p => K(p.minAmount)],
-                  ["Max Amount", p => K(p.maxAmount)],
-                  ["Interest Rate", p => `${p.minRate}–${p.maxRate}% flat`],
-                  ["Term", p => `${p.minTerm}–${p.maxTerm} weeks`],
-                  ["Collateral", p => p.collateral],
-                  ["Documents", p => p.docs.join(", ")],
-                  ["Who Qualifies", p => p.eligibility],
-                ].map(([label, getValue]) => (
+                {([
+                  ["Min Amount", (p: Product) => K(p.minAmount)],
+                  ["Max Amount", (p: Product) => K(p.maxAmount)],
+                  ["Interest Rate", (p: Product) => `${p.minRate}–${p.maxRate}% flat`],
+                  ["Term", (p: Product) => `${p.minTerm}–${p.maxTerm} weeks`],
+                  ["Collateral", (p: Product) => p.collateral],
+                  ["Documents", (p: Product) => p.docs.join(", ")],
+                  ["Who Qualifies", (p: Product) => p.eligibility],
+                ] as [string, (p: Product) => string][]).map(([label, getValue]) => (
                   <tr key={label as string} className="hover:bg-slate-800/30">
                     <td className="px-4 py-3 text-xs font-semibold text-slate-500">{label as string}</td>
                     {compareProducts.map(p => (
