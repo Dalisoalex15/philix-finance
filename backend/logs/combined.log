@@ -75,3 +75,7 @@
 [32minfo[39m: ::1 - - [17/Jun/2026:13:01:30 +0000] "GET /api/portal/applications/staff/all HTTP/1.1" 401 48 "http://10.153.66.131:3001/" "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Mobile Safari/537.36" {"timestamp":"2026-06-17T13:01:30.451Z"}
 [32minfo[39m: ::1 - - [17/Jun/2026:13:01:32 +0000] "GET /api/portal/applications/staff/all HTTP/1.1" 401 48 "http://10.153.66.131:3001/" "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Mobile Safari/537.36" {"timestamp":"2026-06-17T13:01:32.171Z"}
 [32minfo[39m: ::1 - - [17/Jun/2026:13:01:32 +0000] "GET /api/portal/applications/staff/all HTTP/1.1" 401 48 "http://10.153.66.131:3001/" "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Mobile Safari/537.36" {"timestamp":"2026-06-17T13:01:32.187Z"}
+info: Database connected successfully {"timestamp":"2026-06-26T08:56:55.292Z"}
+info: Cron jobs registered (daily at 08:00 CAT) {"timestamp":"2026-06-26T08:56:55.506Z"}
+info: Philix Finance API running on port 4000 {"timestamp":"2026-06-26T08:56:55.516Z"}
+info: Environment: development {"timestamp":"2026-06-26T08:56:55.517Z"}
