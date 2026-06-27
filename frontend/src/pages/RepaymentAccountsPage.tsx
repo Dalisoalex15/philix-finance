@@ -4,8 +4,9 @@ import {
   ChevronDown, ChevronUp, AlertTriangle, CheckCircle2,
   Clock, TrendingUp, Banknote, Users, Activity,
   Send, Download, Filter, Eye, Plus, Zap,
-  AlertCircle, XCircle, StickyNote,
+  AlertCircle, XCircle, StickyNote, Edit3, PlusCircle,
 } from "lucide-react";
+import StaffLoanModal from "../components/StaffLoanModal";
 
 const API = "/api";
 function getToken() { return localStorage.getItem("philix_staff_token") ?? ""; }
@@ -61,7 +62,7 @@ function EmailBtn({ label, color, onClick, loading }: { label: string; color: st
 }
 
 // ── Account Card (matches Google Sheets layout) ───────────────────────────────
-function AccountCard({ acct, onRefresh }: { acct: LoanAccount; onRefresh: () => void }) {
+function AccountCard({ acct, onRefresh, onEdit, onAddEntry }: { acct: LoanAccount; onRefresh: () => void; onEdit: (a: LoanAccount) => void; onAddEntry: (a: LoanAccount) => void }) {
   const [open, setOpen]       = useState(false);
   const [noteOpen, setNoteOpen] = useState(false);
   const [note, setNote]       = useState("");
@@ -237,6 +238,16 @@ function AccountCard({ acct, onRefresh }: { acct: LoanAccount; onRefresh: () => 
           </span>
         )}
         <div className="ml-auto flex gap-2">
+          <button onClick={() => onAddEntry(acct)}
+            className="flex items-center gap-1 text-[10px] font-bold text-emerald-400 px-2 py-1.5 rounded-lg transition-all hover:bg-emerald-900/30"
+            style={{ background: "rgba(34,197,94,0.08)", border: "1px solid rgba(34,197,94,0.2)" }}>
+            <PlusCircle size={9} /> Add Entry
+          </button>
+          <button onClick={() => onEdit(acct)}
+            className="flex items-center gap-1 text-[10px] font-bold text-amber-400 px-2 py-1.5 rounded-lg transition-all hover:bg-amber-900/30"
+            style={{ background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.2)" }}>
+            <Edit3 size={9} /> Edit Loan
+          </button>
           <button onClick={() => setNoteOpen(o => !o)}
             className="flex items-center gap-1 text-[10px] text-slate-400 px-2 py-1.5 rounded-lg transition-all hover:text-slate-200"
             style={{ background: "rgba(255,255,255,0.04)" }}>
@@ -339,6 +350,9 @@ export default function RepaymentAccountsPage() {
   const [total, setTotal]         = useState(0);
   const [page, setPage]           = useState(1);
 
+  // Modal state
+  const [modal, setModal] = useState<{ mode: "create" | "edit" | "entry"; loan?: LoanAccount } | null>(null);
+
   const load = useCallback(async () => {
     setLoading(true);
     const params = new URLSearchParams({ page: String(page), limit: "50" });
@@ -394,6 +408,12 @@ export default function RepaymentAccountsPage() {
           <p className="text-xs text-slate-500 mt-0.5">Live loan accounts with ledger, email actions & health tracking</p>
         </div>
         <div className="flex flex-wrap gap-2">
+          {/* Create loan */}
+          <button onClick={() => setModal({ mode: "create" })}
+            className="flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-xl transition-all"
+            style={{ background: "#6366f1", color: "#fff", boxShadow: "0 0 20px rgba(99,102,241,0.35)" }}>
+            <Plus size={12} /> Create Loan
+          </button>
           {/* Bulk actions */}
           <button onClick={() => bulkAction("bulk-send-statements")} disabled={!!bulkLoading}
             className="flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-xl transition-all disabled:opacity-60"
@@ -511,10 +531,40 @@ export default function RepaymentAccountsPage() {
         </div>
       ) : view === "cards" ? (
         <div>
-          {accounts.map(a => <AccountCard key={a.id} acct={a} onRefresh={load} />)}
+          {accounts.map(a => (
+            <AccountCard
+              key={a.id} acct={a} onRefresh={load}
+              onEdit={acc => setModal({ mode: "edit", loan: acc })}
+              onAddEntry={acc => setModal({ mode: "entry", loan: acc })}
+            />
+          ))}
         </div>
       ) : (
         <LoanTable accounts={accounts} />
+      )}
+
+      {/* ── Staff Loan Modal ── */}
+      {modal && (
+        <StaffLoanModal
+          mode={modal.mode}
+          loan={modal.loan ? {
+            id: modal.loan.id,
+            reference: modal.loan.reference,
+            productType: modal.loan.productType,
+            amountRequested: modal.loan.principal,
+            termMonths: modal.loan.termWeeks,
+            interestRate: modal.loan.rate,
+            status: modal.loan.status,
+            purpose: modal.loan.purpose,
+            account: {
+              firstName: modal.loan.account.firstName,
+              lastName: modal.loan.account.lastName,
+              email: modal.loan.account.email,
+            },
+          } : undefined}
+          onClose={() => setModal(null)}
+          onSuccess={load}
+        />
       )}
     </div>
   );

@@ -350,4 +350,161 @@ router.post("/bulk-send-reminders", isManagerOrAbove, wrap(async (req, res) => {
   res.json({ ok: true, sent, failed, total: apps.length });
 }));
 
+// ── GET /api/accounts/search-clients — find portal clients for loan creation ──
+router.get("/search-clients", wrap(async (req, res) => {
+  const q = (req.query.q as string)?.trim();
+  if (!q || q.length < 2) return res.json({ clients: [] });
+
+  const clients = await prisma.clientPortalAccount.findMany({
+    where: {
+      isBlacklisted: false,
+      OR: [
+        { firstName:    { contains: q, mode: "insensitive" } },
+        { lastName:     { contains: q, mode: "insensitive" } },
+        { email:        { contains: q, mode: "insensitive" } },
+        { phone:        { contains: q, mode: "insensitive" } },
+        { clientNumber: { contains: q, mode: "insensitive" } },
+      ],
+    },
+    select: { id: true, clientNumber: true, firstName: true, lastName: true, email: true, phone: true, status: true },
+    take: 20,
+  });
+
+  res.json({ clients });
+}));
+
+// ── POST /api/accounts/create-loan — staff creates a loan directly ────────────
+router.post("/create-loan", wrap(async (req, res) => {
+  const {
+    accountId, productType = "BUSINESS", amountRequested,
+    termWeeks, interestRate = 20, purpose = "Business",
+    description, collateralType, collateralDesc, collateralValue,
+    status = "SUBMITTED", staffName, disbursedNow = false,
+  } = req.body;
+
+  if (!accountId)        return res.status(400).json({ error: "Client account required" });
+  if (!amountRequested)  return res.status(400).json({ error: "Amount required" });
+  if (!termWeeks)        return res.status(400).json({ error: "Term (weeks) required" });
+
+  const client = await prisma.clientPortalAccount.findUnique({ where: { id: accountId } });
+  if (!client) return res.status(404).json({ error: "Client not found" });
+
+  const date   = new Date();
+  const yy     = date.getFullYear().toString().slice(2);
+  const mm     = String(date.getMonth() + 1).padStart(2, "0");
+  const rand   = Math.floor(Math.random() * 100000).toString().padStart(5, "0");
+  const reference = `PX-STAFF-${yy}${mm}${rand}`;
+
+  const finalStatus = disbursedNow ? "DISBURSED" : status;
+
+  const loan = await prisma.portalLoanApplication.create({
+    data: {
+      reference, accountId,
+      productType, amountRequested, termMonths: termWeeks, interestRate,
+      purpose, description, collateralType, collateralDesc, collateralValue,
+      status: finalStatus,
+      reviewedBy: staffName ?? "Staff",
+      reviewedAt: finalStatus !== "SUBMITTED" ? new Date() : null,
+    },
+  });
+
+  // If disbursing immediately, send statement email
+  if (disbursedNow) {
+    await Mailer.loanDisbursed({
+      email: client.email, firstName: client.firstName,
+      reference, amountRequested, interestRate, termMonths: termWeeks,
+      accountId: client.id,
+    }).catch(() => {});
+  }
+
+  res.status(201).json({ ok: true, loan, reference });
+}));
+
+// ── PATCH /api/accounts/:id — edit loan details ───────────────────────────────
+router.patch("/:id", wrap(async (req, res) => {
+  const {
+    amountRequested, termWeeks, interestRate, status,
+    purpose, description, reviewedBy, collateralType, collateralDesc, collateralValue,
+    rejectedReason,
+  } = req.body;
+
+  const existing = await prisma.portalLoanApplication.findUnique({ where: { id: req.params.id } });
+  if (!existing) return res.status(404).json({ error: "Loan not found" });
+
+  const wasNotDisbursed = existing.status !== "DISBURSED";
+  const isNowDisbursed  = status === "DISBURSED";
+
+  const updated = await prisma.portalLoanApplication.update({
+    where: { id: req.params.id },
+    data: {
+      ...(amountRequested  !== undefined ? { amountRequested }  : {}),
+      ...(termWeeks        !== undefined ? { termMonths: termWeeks } : {}),
+      ...(interestRate     !== undefined ? { interestRate }     : {}),
+      ...(status           !== undefined ? { status }           : {}),
+      ...(purpose          !== undefined ? { purpose }          : {}),
+      ...(description      !== undefined ? { description }      : {}),
+      ...(reviewedBy       !== undefined ? { reviewedBy }       : {}),
+      ...(collateralType   !== undefined ? { collateralType }   : {}),
+      ...(collateralDesc   !== undefined ? { collateralDesc }   : {}),
+      ...(collateralValue  !== undefined ? { collateralValue }  : {}),
+      ...(rejectedReason   !== undefined ? { rejectedReason }   : {}),
+      ...(isNowDisbursed && wasNotDisbursed ? { reviewedAt: new Date() } : {}),
+    },
+    include: { account: true },
+  });
+
+  // If just disbursed, send statement email
+  if (isNowDisbursed && wasNotDisbursed) {
+    await Mailer.loanDisbursed({
+      email: updated.account.email, firstName: updated.account.firstName,
+      reference: updated.reference, amountRequested: updated.amountRequested,
+      interestRate: updated.interestRate, termMonths: updated.termMonths,
+      accountId: updated.accountId,
+    }).catch(() => {});
+  }
+
+  res.json({ ok: true, loan: updated });
+}));
+
+// ── POST /api/accounts/:id/manual-entry — add manual payment or adjustment ───
+router.post("/:id/manual-entry", wrap(async (req, res) => {
+  const { type = "PAYMENT", amount, notes, paymentMethod = "CASH", provider, reference, staffName } = req.body;
+  if (!amount || amount <= 0) return res.status(400).json({ error: "Amount required" });
+
+  const app = await prisma.portalLoanApplication.findUnique({
+    where: { id: req.params.id },
+    select: { accountId: true, reference: true, amountRequested: true, interestRate: true, termMonths: true },
+  });
+  if (!app) return res.status(404).json({ error: "Loan not found" });
+
+  const entry = await prisma.loanPaymentSubmission.create({
+    data: {
+      applicationId: req.params.id,
+      accountId: app.accountId,
+      amount, paymentMethod, provider,
+      reference: reference ?? `MANUAL-${Date.now()}`,
+      notes: notes ?? `Manual ${type.toLowerCase()} by ${staffName ?? "staff"}`,
+      status: "APPROVED",
+      reviewedBy: staffName ?? "Staff",
+      reviewedAt: new Date(),
+    },
+  });
+
+  res.status(201).json({ ok: true, entry });
+}));
+
+// ── DELETE /api/accounts/:id/entry/:entryId — remove a manual payment entry ──
+router.delete("/:id/entry/:entryId", isManagerOrAbove, wrap(async (req, res) => {
+  const entry = await prisma.loanPaymentSubmission.findUnique({
+    where: { id: req.params.entryId },
+    select: { applicationId: true },
+  });
+  if (!entry || entry.applicationId !== req.params.id) {
+    return res.status(404).json({ error: "Entry not found" });
+  }
+  await prisma.loanPaymentSubmission.delete({ where: { id: req.params.entryId } });
+  res.json({ ok: true });
+}));
+
 export default router;
+
