@@ -102,8 +102,10 @@ const navGroups: NavGroup[] = [
     label: "Analytics & Reports",
     items: [
       { href: "/reports",                icon: BarChart2,  label: "Reports" },
-      { href: "/branch-profitability",   icon: PieChart,   label: "Branch P&L",       roles: ["SUPER_ADMIN", "MANAGER"] },
-      { href: "/portfolio-profitability",icon: MonitorDot, label: "Portfolio P&L",    roles: ["SUPER_ADMIN", "MANAGER"] },
+      { href: "/branch-profitability",   icon: PieChart,   label: "Branch P&L",          roles: ["SUPER_ADMIN", "MANAGER"] },
+      { href: "/portfolio-profitability",icon: MonitorDot, label: "Portfolio P&L",       roles: ["SUPER_ADMIN", "MANAGER"] },
+      { href: "/financial-statements",   icon: FileText,   label: "Financial Statements", roles: ["SUPER_ADMIN", "MANAGER"], badge: "NEW", badgeColor: "bg-[#C9A227] text-[#0B1F3A]" },
+      { href: "/targets",                icon: TrendingUp, label: "Loan Officer Targets", roles: ["SUPER_ADMIN", "MANAGER"], badge: "NEW", badgeColor: "bg-[#C9A227] text-[#0B1F3A]" },
     ],
   },
   {
@@ -134,9 +136,14 @@ const navGroups: NavGroup[] = [
   {
     label: "Loan Tracking",
     items: [
-      { href: "/loan-pipeline",          icon: GitBranch,    label: "Loan Pipeline",       badge: "NEW", badgeColor: "bg-indigo-600 text-white" },
+      { href: "/loan-pipeline",          icon: GitBranch,    label: "Loan Pipeline",          badge: "NEW", badgeColor: "bg-indigo-600 text-white" },
       { href: "/collection-performance", icon: BarChart2,    label: "Collection Performance", badge: "NEW", badgeColor: "bg-indigo-600 text-white" },
-      { href: "/bulk-payment-import",    icon: Upload,       label: "Bulk Payment Import", badge: "NEW", badgeColor: "bg-amber-600 text-white" },
+      { href: "/bulk-payment-import",    icon: Upload,       label: "Bulk Payment Import",    badge: "NEW", badgeColor: "bg-amber-600 text-white" },
+      { href: "/disbursement-checklist", icon: CheckSquare,  label: "Disbursement Checklist", badge: "NEW", badgeColor: "bg-emerald-600 text-white" },
+      { href: "/client-visits",          icon: Calendar,     label: "Client Visits",          badge: "NEW", badgeColor: "bg-blue-600 text-white" },
+      { href: "/quick-lookup",           icon: Search,       label: "Quick Loan Lookup",      badge: "NEW", badgeColor: "bg-violet-600 text-white" },
+      { href: "/document-expiry-alerts", icon: FileWarning,  label: "Document Expiry Alerts", badge: "NEW", badgeColor: "bg-red-600 text-white" },
+      { href: "/staff-performance",      icon: Activity,     label: "Staff Performance",      badge: "NEW", badgeColor: "bg-teal-600 text-white" },
     ],
   },
   {
