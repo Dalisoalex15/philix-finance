@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { useClientAuthStore } from "../../store/clientAuth";
+import ApplicationCountdown from "../../components/portal/ApplicationCountdown";
 import {
   Shield, BadgeCheck, AlertCircle, Receipt, FileText,
   Zap, Calculator, Home, CreditCard, Bell, User,
@@ -1017,13 +1018,20 @@ export default function ClientDashboardPage() {
 
       {/* ── PENDING NOTICE ─────────────────────────────────────────────── */}
       {pending.length > 0 && (
-        <div className="flex items-center gap-3 rounded-xl px-4 py-3 mb-3"
-          style={{ background: "rgba(14,165,233,0.06)", border: "1px solid rgba(14,165,233,0.14)" }}>
-          <span className="w-2 h-2 rounded-full bg-sky-400 animate-pulse flex-shrink-0" />
-          <p className="text-xs text-sky-300 flex-1">
-            <span className="font-semibold">{pending.length}</span> application{pending.length > 1 ? "s" : ""} under review
-          </p>
-          <Link to="/portal/loans" className="text-[11px] font-semibold text-sky-400">Track →</Link>
+        <div className="mb-3 space-y-3">
+          {pending.map(p => (
+            <ApplicationCountdown
+              key={p.id}
+              submittedAt={p.createdAt}
+              status={p.status as "SUBMITTED" | "UNDER_REVIEW"}
+              reference={p.reference}
+            />
+          ))}
+          <Link to="/portal/loans"
+            className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl text-xs font-semibold text-sky-400"
+            style={{ background: "rgba(14,165,233,0.06)", border: "1px solid rgba(14,165,233,0.14)" }}>
+            View full application details →
+          </Link>
         </div>
       )}
 

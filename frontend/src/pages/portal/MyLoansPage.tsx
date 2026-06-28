@@ -6,6 +6,7 @@ import {
   ChevronDown, ChevronUp, X, Zap, AlertTriangle, Info, Download,
   Wallet, RotateCcw, Sparkles,
 } from "lucide-react";
+import ApplicationCountdown from "../../components/portal/ApplicationCountdown";
 import jsPDF from "jspdf";
 import { useClientAuthStore } from "../../store/clientAuth";
 
@@ -1196,6 +1197,17 @@ export default function MyLoansPage() {
                             style={{ background: i <= idx ? "#6366f1" : "#1e293b" }} />
                         );
                       })}
+                    </div>
+                  )}
+
+                  {/* Live countdown for pending applications */}
+                  {(app.status === "SUBMITTED" || app.status === "UNDER_REVIEW") && isOpen && (
+                    <div className="mt-3" onClick={e => e.stopPropagation()}>
+                      <ApplicationCountdown
+                        submittedAt={app.createdAt}
+                        status={app.status}
+                        reference={app.reference}
+                      />
                     </div>
                   )}
 
