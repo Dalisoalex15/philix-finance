@@ -1707,4 +1707,77 @@ router.patch("/applications/:id/change-duration", wrap(async (req: Request, res:
   res.json({ ok: true, loan: updated, newDuration: termMonths });
 }));
 
+// ── POST /api/admin/send-payment-reminders — bulk email clients due this week ──
+router.post("/send-payment-reminders", wrap(async (req: Request, res: Response) => {
+  const now = new Date();
+  const weekEnd = new Date(now.getTime() + 7 * 86400000);
+  const GRACE_DAYS = 3;
+
+  // Get all disbursed loans that have a maturity date in the next 7 days OR already overdue
+  const loans = await (prisma as any).portalLoanApplication.findMany({
+    where: { status: "DISBURSED" },
+    include: {
+      account: { select: { id: true, firstName: true, lastName: true, email: true, clientNumber: true } },
+    },
+  });
+
+  const toRemind: { name: string; email: string; ref: string; dueDate: string; amount: number; isOverdue: boolean }[] = [];
+
+  for (const loan of loans) {
+    if (!loan.maturityDate || !loan.account?.email) continue;
+    const maturity = new Date(loan.maturityDate);
+    const daysUntilDue = Math.floor((maturity.getTime() - now.getTime()) / 86400000);
+    const outstanding = (loan.totalDue ?? loan.amountRequested) - (loan.totalPaid ?? 0);
+    if (outstanding <= 0) continue; // fully paid
+
+    const isDueSoon = daysUntilDue >= 0 && daysUntilDue <= 7;
+    const isOverdue  = daysUntilDue < -GRACE_DAYS;
+
+    if (isDueSoon || isOverdue) {
+      toRemind.push({
+        name: `${loan.account.firstName} ${loan.account.lastName}`,
+        email: loan.account.email,
+        ref: loan.reference,
+        dueDate: maturity.toLocaleDateString("en-ZM", { day: "numeric", month: "long", year: "numeric" }),
+        amount: outstanding,
+        isOverdue,
+      });
+    }
+  }
+
+  let sent = 0;
+  for (const r of toRemind) {
+    const subject = r.isOverdue
+      ? `⚠️ URGENT: Your loan ${r.ref} is overdue — Philix Finance`
+      : `📅 Payment reminder: ${r.ref} due ${r.dueDate} — Philix Finance`;
+
+    const body = r.isOverdue
+      ? `<p>Dear <strong>${r.name}</strong>,</p>
+         <p>Your loan <strong>${r.ref}</strong> has an outstanding balance of <strong>K${r.amount.toLocaleString()}</strong> which is now overdue.</p>
+         <p>Penalties of <strong>2% per day</strong> are accruing on the outstanding balance. Please make payment immediately to stop further charges.</p>
+         <p><strong>To pay:</strong> Visit any Philix Finance branch or call <strong>+260 777 158 901</strong></p>
+         <p>If you have already made a payment, please submit your proof of payment through the Philix Finance client portal.</p>
+         <p>Thank you for banking with Philix Finance.</p>`
+      : `<p>Dear <strong>${r.name}</strong>,</p>
+         <p>This is a friendly reminder that your loan <strong>${r.ref}</strong> has an outstanding balance of <strong>K${r.amount.toLocaleString()}</strong> due on <strong>${r.dueDate}</strong>.</p>
+         <p>Please ensure payment is made on or before the due date to avoid a 2% daily penalty after the 3-day grace period.</p>
+         <p><strong>To pay:</strong> Visit any Philix Finance branch, use mobile money, or call <strong>+260 777 158 901</strong></p>
+         <p>Thank you — we appreciate your continued trust in Philix Finance.</p>`;
+
+    try {
+      await sendEmail({ to: r.email, subject, html: buildBaseHtml(subject, body) });
+      sent++;
+    } catch { /* log but continue */ }
+  }
+
+  res.json({
+    ok: true,
+    sent,
+    total: toRemind.length,
+    message: sent > 0
+      ? `Payment reminders sent to ${sent} client${sent !== 1 ? "s" : ""} (${toRemind.filter(r => r.isOverdue).length} overdue, ${toRemind.filter(r => !r.isOverdue).length} due soon)`
+      : toRemind.length === 0 ? "No clients are due this week — all clear!" : "No reminders sent (email delivery issue)",
+  });
+}));
+
 export default router;

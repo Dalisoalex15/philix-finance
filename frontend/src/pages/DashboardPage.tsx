@@ -1,12 +1,14 @@
 import {
   Users, CheckCircle, Clock, Download, CreditCard, TrendingUp, Banknote,
   AlertTriangle, BarChart2, Plus, Zap, ArrowRight, RefreshCw,
-  Brain, Wallet, Activity,
+  Brain, Wallet, Activity, Bell, Mail, Info,
 } from "lucide-react";
 import { useEffect, useState, useCallback } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useLoanApplicationStore } from "../store/loanApplicationStore";
 import { useAuthStore } from "../store/auth";
+
+interface LiveAlert { type: string; severity: string; title: string; detail: string; href: string; ts: string; }
 
 const K = (n: number) =>
   `K${n.toLocaleString("en-ZM", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
@@ -86,8 +88,11 @@ export default function DashboardPage() {
     totalInterestEarned: 0, totalRepayable: 0,
   });
   const [kpis, setKpis] = useState<AccountKpis | null>(null);
+  const [alerts, setAlerts] = useState<LiveAlert[]>([]);
   const [lastRefresh, setLastRefresh] = useState(new Date());
   const [refreshing, setRefreshing] = useState(false);
+  const [reminderLoading, setReminderLoading] = useState(false);
+  const [reminderResult, setReminderResult] = useState<string | null>(null);
 
   const isCEO = user?.role === "SUPER_ADMIN" || user?.role === "MANAGER";
   const hour = new Date().getHours();
@@ -101,9 +106,24 @@ export default function DashboardPage() {
       syncFromApi(),
       fetch("/api/admin/summary", { headers: h }).then(r => r.ok ? r.json() : null).then(d => d && setSummary(d)),
       fetch("/api/accounts/kpis", { headers: h }).then(r => r.ok ? r.json() : null).then(d => d && setKpis(d)),
+      fetch("/api/dashboard/alerts", { headers: h }).then(r => r.ok ? r.json() : []).then(d => setAlerts(d ?? [])),
     ]);
     setLastRefresh(new Date());
   }, [syncFromApi]);
+
+  const sendReminders = useCallback(async () => {
+    setReminderLoading(true); setReminderResult(null);
+    const token = localStorage.getItem("philix_staff_token");
+    try {
+      const r = await fetch("/api/admin/send-payment-reminders", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      });
+      const d = await r.json();
+      setReminderResult(d.message ?? `Reminders sent to ${d.sent ?? 0} clients`);
+    } catch { setReminderResult("Failed to send reminders"); }
+    finally { setReminderLoading(false); setTimeout(() => setReminderResult(null), 5000); }
+  }, []);
 
   useEffect(() => { load(); }, [load]);
 
@@ -344,6 +364,91 @@ export default function DashboardPage() {
             </table>
           </div>
         )}
+      </div>
+
+      {/* Live Alert Feed + Reminder Action */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+        {/* Alert feed */}
+        <div className="lg:col-span-2 rounded-2xl bg-white/[0.03] border border-white/5 overflow-hidden">
+          <div className="flex items-center justify-between px-5 py-3.5 border-b border-white/5">
+            <div className="flex items-center gap-2">
+              <Bell size={13} className="text-white/30" />
+              <h3 className="text-sm font-semibold text-white/70">Live Alerts</h3>
+              {alerts.filter(a => a.severity === "danger").length > 0 && (
+                <span className="text-[10px] font-bold bg-red-500/15 text-red-400 border border-red-500/25 px-1.5 py-0.5 rounded-full">
+                  {alerts.filter(a => a.severity === "danger").length} critical
+                </span>
+              )}
+            </div>
+          </div>
+          <div className="divide-y divide-white/[0.03] max-h-56 overflow-y-auto">
+            {alerts.length === 0 ? (
+              <div className="px-5 py-8 text-center text-sm text-white/20">
+                <CheckCircle size={20} className="mx-auto mb-2 text-emerald-500/30" />
+                All clear — no active alerts
+              </div>
+            ) : alerts.slice(0, 8).map((a, i) => (
+              <Link key={i} to={a.href}
+                className="flex items-start gap-3 px-5 py-3 hover:bg-white/[0.02] transition-colors block">
+                <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 mt-1.5 ${a.severity === "danger" ? "bg-red-500" : a.severity === "warn" ? "bg-amber-500" : a.severity === "success" ? "bg-emerald-500" : "bg-blue-500"}`} />
+                <div className="flex-1 min-w-0">
+                  <div className="text-[12px] font-medium text-white/70">{a.title}</div>
+                  <div className="text-[11px] text-white/35 truncate">{a.detail}</div>
+                </div>
+                <div className="text-[9px] text-white/20 whitespace-nowrap flex-shrink-0 mt-0.5">
+                  {Math.floor((Date.now() - new Date(a.ts).getTime()) / 3600000) < 1
+                    ? `${Math.floor((Date.now() - new Date(a.ts).getTime()) / 60000)}m ago`
+                    : `${Math.floor((Date.now() - new Date(a.ts).getTime()) / 3600000)}h ago`}
+                </div>
+              </Link>
+            ))}
+          </div>
+        </div>
+
+        {/* Actions panel */}
+        <div className="rounded-2xl bg-white/[0.03] border border-white/5 p-5 flex flex-col gap-3">
+          <h3 className="text-sm font-semibold text-white/60">Quick Actions</h3>
+          <button onClick={sendReminders} disabled={reminderLoading}
+            className="flex items-center gap-3 px-4 py-3 rounded-xl bg-amber-500/10 border border-amber-500/20 hover:bg-amber-500/15 transition-all text-left group disabled:opacity-50">
+            <Mail size={15} className="text-amber-400 flex-shrink-0" />
+            <div>
+              <div className="text-[12px] font-semibold text-amber-400 group-hover:text-amber-300 transition-colors">
+                {reminderLoading ? "Sending…" : "Send Payment Reminders"}
+              </div>
+              <div className="text-[10px] text-white/25">Email all clients due this week</div>
+            </div>
+            {reminderLoading && <RefreshCw size={12} className="text-amber-400 animate-spin ml-auto" />}
+          </button>
+          {reminderResult && (
+            <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-[11px] text-emerald-400">
+              <CheckCircle size={11} /> {reminderResult}
+            </div>
+          )}
+          <Link to="/online-applications"
+            className="flex items-center gap-3 px-4 py-3 rounded-xl bg-indigo-500/10 border border-indigo-500/20 hover:bg-indigo-500/15 transition-all group">
+            <Clock size={15} className="text-indigo-400 flex-shrink-0" />
+            <div>
+              <div className="text-[12px] font-semibold text-indigo-400 group-hover:text-indigo-300 transition-colors">Review Applications</div>
+              <div className="text-[10px] text-white/25">{pending.length} pending review</div>
+            </div>
+          </Link>
+          <Link to="/accounts-management"
+            className="flex items-center gap-3 px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/20 hover:bg-red-500/15 transition-all group">
+            <AlertTriangle size={15} className="text-red-400 flex-shrink-0" />
+            <div>
+              <div className="text-[12px] font-semibold text-red-400 group-hover:text-red-300 transition-colors">Overdue Accounts</div>
+              <div className="text-[10px] text-white/25">{kpis?.overdueCount ?? 0} clients overdue</div>
+            </div>
+          </Link>
+          <Link to="/philix-ai"
+            className="flex items-center gap-3 px-4 py-3 rounded-xl bg-purple-500/10 border border-purple-500/20 hover:bg-purple-500/15 transition-all group">
+            <Info size={15} className="text-purple-400 flex-shrink-0" />
+            <div>
+              <div className="text-[12px] font-semibold text-purple-400 group-hover:text-purple-300 transition-colors">Ask Philix AI</div>
+              <div className="text-[10px] text-white/25">Credit scoring, docs, analysis</div>
+            </div>
+          </Link>
+        </div>
       </div>
 
       {/* AI nudge — bottom CTA */}

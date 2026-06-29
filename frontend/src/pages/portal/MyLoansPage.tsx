@@ -37,6 +37,11 @@ interface LoanApp {
   rejectedReason: string | null;
   autoUpgraded?: boolean;
   paymentSubmissions?: PaymentRecord[];
+  // Repayment schedule fields (optional — may not be present on older records)
+  totalDue?: number;
+  totalPaid?: number;
+  disbursedAt?: string;
+  maturityDate?: string;
 }
 
 const STATUS_STYLE: Record<string, string> = {
@@ -787,62 +792,193 @@ function RolloverModal({ app, token, onClose, onDone }: {
   );
 }
 
-function SchedulePanel({ app }: { app: LoanApp }) {
-  const rate     = app.interestRate ?? 20;
-  const totalDue = Math.ceil(app.amountRequested * (1 + rate / 100));
-  const weeklyAmt = Math.ceil(totalDue / (app.termMonths || 1));
-  const totalPaid = (app.paymentSubmissions ?? [])
+function SchedulePanel({ app, expanded, onToggle }: {
+  app: LoanApp;
+  expanded: boolean;
+  onToggle: () => void;
+}) {
+  const rate        = app.interestRate ?? 20;
+  const computedTotalDue = Math.ceil(app.amountRequested * (1 + rate / 100));
+  const totalDue    = app.totalDue ?? computedTotalDue;
+  const weeklyAmt   = Math.ceil(totalDue / (app.termMonths || 1));
+  const computedPaid = (app.paymentSubmissions ?? [])
     .filter(p => p.status === "APPROVED")
     .reduce((s, p) => s + (p.amount ?? 0), 0);
-  const paidCount  = totalPaid >= totalDue ? app.termMonths : Math.floor(totalPaid / weeklyAmt);
-  const startDate  = app.reviewedAt ? new Date(app.reviewedAt) : new Date();
-  const today      = new Date();
+  const totalPaid   = app.totalPaid ?? computedPaid;
+  const baseDate    = app.disbursedAt
+    ? new Date(app.disbursedAt)
+    : app.reviewedAt
+    ? new Date(app.reviewedAt)
+    : new Date(app.createdAt);
+  const now         = new Date();
+  const paidCount   = totalPaid >= totalDue ? app.termMonths : Math.floor(totalPaid / weeklyAmt);
+
+  type WeekStatus = "PAID" | "OVERDUE" | "CURRENT" | "UPCOMING";
 
   const weeks = Array.from({ length: app.termMonths }, (_, i) => {
-    const dueDate = new Date(startDate.getTime() + (i + 1) * 7 * 86400000);
-    const isPaid     = i < paidCount;
-    const isDue      = !isPaid && dueDate <= today;
-    return { week: i + 1, dueDate, amount: weeklyAmt, isPaid, isDue };
+    const w        = i + 1;
+    const weekStart = new Date(baseDate.getTime() + i * 7 * 86400000);
+    const dueDate  = new Date(baseDate.getTime() + w * 7 * 86400000);
+    const cumulativeDue = weeklyAmt * w;
+    const isPaid   = totalPaid >= cumulativeDue;
+    const isPast   = dueDate < now;
+    let status: WeekStatus = isPaid ? "PAID" : isPast ? "OVERDUE" : "UPCOMING";
+    if (!isPaid && now >= weekStart && now <= dueDate) status = "CURRENT";
+    return { week: w, dueDate, amount: weeklyAmt, status };
   });
 
+  const STATUS_CHIP: Record<WeekStatus, string> = {
+    PAID:     "bg-emerald-900/40 text-emerald-300 border-emerald-800/50",
+    OVERDUE:  "bg-red-900/40 text-red-300 border-red-800/50",
+    CURRENT:  "bg-amber-900/40 text-amber-300 border-amber-800/50",
+    UPCOMING: "bg-slate-800 text-slate-500 border-slate-700",
+  };
+  const ROW_BG: Record<WeekStatus, string> = {
+    PAID:     "bg-emerald-900/10",
+    OVERDUE:  "bg-red-900/10",
+    CURRENT:  "bg-amber-900/10",
+    UPCOMING: "",
+  };
+  const AMOUNT_COLOR: Record<WeekStatus, string> = {
+    PAID:     "text-emerald-400",
+    OVERDUE:  "text-red-400",
+    CURRENT:  "text-amber-400",
+    UPCOMING: "text-slate-400",
+  };
+  const WEEK_ICON: Record<WeekStatus, string> = {
+    PAID:     "bg-emerald-600/40 text-emerald-300",
+    OVERDUE:  "bg-red-600/40 text-red-300",
+    CURRENT:  "bg-amber-600/40 text-amber-300",
+    UPCOMING: "bg-slate-700 text-slate-500",
+  };
+
+  function downloadSchedulePDF() {
+    const doc = new jsPDF({ unit: "mm", format: "a4" });
+    const fmtK  = (n: number) => `K${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    const fmtD  = (d: Date) => d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+
+    // Header
+    doc.setFillColor(11, 31, 58);
+    doc.rect(0, 0, 210, 32, "F");
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(16);
+    doc.setFont("helvetica", "bold");
+    doc.text("PHILIX FINANCE LIMITED", 105, 13, { align: "center" });
+    doc.setFontSize(8);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(160, 170, 185);
+    doc.text("REPAYMENT SCHEDULE  ·  Ref: " + app.reference, 105, 21, { align: "center" });
+    doc.text("Creating A Future Together  ·  Bank of Zambia Licensed", 105, 27, { align: "center" });
+
+    // Summary row
+    let y = 42;
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(100, 100, 100);
+    doc.text(`Principal: ${fmtK(app.amountRequested)}  ·  Interest: ${app.interestRate ?? 20}%  ·  Total Due: ${fmtK(totalDue)}  ·  Term: ${app.termMonths} weeks`, 14, y);
+    y += 8;
+
+    // Table header
+    doc.setFillColor(11, 31, 58);
+    doc.rect(14, y - 4, 182, 8, "F");
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(8);
+    doc.setFont("helvetica", "bold");
+    doc.text("Week", 18, y + 0.5);
+    doc.text("Due Date", 50, y + 0.5);
+    doc.text("Amount", 110, y + 0.5);
+    doc.text("Status", 155, y + 0.5);
+    y += 10;
+
+    weeks.forEach(w => {
+      const statusColor: [number, number, number] =
+        w.status === "PAID"    ? [52, 211, 153] :
+        w.status === "OVERDUE" ? [248, 113, 113] :
+        w.status === "CURRENT" ? [251, 191, 36] :
+        [100, 116, 139];
+      doc.setFontSize(8.5);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(20, 20, 20);
+      doc.text(`Week ${w.week}`, 18, y);
+      doc.text(fmtD(w.dueDate), 50, y);
+      doc.text(fmtK(w.amount), 110, y);
+      doc.setTextColor(...statusColor);
+      doc.setFont("helvetica", "bold");
+      doc.text(w.status, 155, y);
+      doc.setDrawColor(220, 225, 230);
+      doc.line(14, y + 2, 196, y + 2);
+      y += 9;
+      if (y > 270) { doc.addPage(); y = 20; }
+    });
+
+    y += 6;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    doc.setTextColor(100, 100, 100);
+    doc.text(`Total Paid to Date: ${fmtK(totalPaid)}  ·  Outstanding: ${fmtK(Math.max(0, totalDue - totalPaid))}`, 14, y);
+
+    // Footer
+    doc.setFillColor(11, 31, 58);
+    doc.rect(0, 282, 210, 15, "F");
+    doc.setTextColor(140, 155, 170);
+    doc.setFontSize(7);
+    doc.text("Philix Finance Ltd  ·  Lusaka, Zambia  ·  info@philixfinance.com  ·  Bank of Zambia Licensed", 105, 290, { align: "center" });
+
+    doc.save(`RepaymentSchedule-${app.reference}.pdf`);
+  }
+
   return (
-    <div className="bg-slate-800/40 border border-slate-700 rounded-xl overflow-hidden">
-      <div className="px-4 py-2.5 border-b border-slate-700 flex items-center justify-between">
-        <div className="flex items-center gap-1.5">
+    <div className="space-y-1">
+      {/* Toggle trigger */}
+      <button
+        onClick={e => { e.stopPropagation(); onToggle(); }}
+        className="w-full flex items-center justify-between px-4 py-3 bg-slate-800/40 hover:bg-slate-800/70 border border-slate-700 rounded-xl transition-all text-xs font-semibold text-slate-300"
+      >
+        <div className="flex items-center gap-2">
           <Calendar size={13} className="text-indigo-400" />
-          <span className="text-xs font-semibold text-slate-300">Repayment Schedule</span>
+          <span>Repayment Schedule</span>
+          <span className="text-[10px] text-slate-500 font-normal">{paidCount}/{app.termMonths} paid</span>
         </div>
-        <span className="text-[10px] text-slate-500">{paidCount}/{app.termMonths} paid</span>
-      </div>
-      <div className="divide-y divide-slate-800/60">
-        {weeks.map(w => (
-          <div key={w.week} className={`flex items-center justify-between px-4 py-2.5 text-xs transition-colors
-            ${w.isPaid ? "bg-emerald-900/10" : w.isDue ? "bg-amber-900/10" : ""}`}>
-            <div className="flex items-center gap-2.5">
-              <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold flex-shrink-0
-                ${w.isPaid ? "bg-emerald-600/40 text-emerald-300" : w.isDue ? "bg-amber-600/40 text-amber-300" : "bg-slate-700 text-slate-500"}`}>
-                {w.isPaid ? "✓" : w.week}
-              </div>
-              <div>
-                <div className={`font-semibold ${w.isPaid ? "text-emerald-400" : w.isDue ? "text-amber-400" : "text-slate-400"}`}>
-                  Week {w.week}
+        {expanded ? <ChevronUp size={13} className="text-slate-500" /> : <ChevronDown size={13} className="text-slate-500" />}
+      </button>
+
+      {/* Expanded table */}
+      {expanded && (
+        <div className="bg-slate-800/40 border border-slate-700 rounded-xl overflow-hidden">
+          <div className="divide-y divide-slate-800/60">
+            {weeks.map(w => (
+              <div key={w.week} className={`flex items-center justify-between px-4 py-2.5 text-xs transition-colors ${ROW_BG[w.status]}`}>
+                <div className="flex items-center gap-2.5">
+                  <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold flex-shrink-0 ${WEEK_ICON[w.status]}`}>
+                    {w.status === "PAID" ? "✓" : w.week}
+                  </div>
+                  <div>
+                    <div className={`font-semibold ${AMOUNT_COLOR[w.status]}`}>Week {w.week}</div>
+                    <div className="text-slate-600">
+                      {w.dueDate.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
+                    </div>
+                  </div>
                 </div>
-                <div className="text-slate-600">
-                  {w.dueDate.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
+                <div className="text-right flex flex-col items-end gap-1">
+                  <div className={`font-bold ${AMOUNT_COLOR[w.status]}`}>{K(w.amount)}</div>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${STATUS_CHIP[w.status]}`}>
+                    {w.status}
+                  </span>
                 </div>
               </div>
-            </div>
-            <div className="text-right">
-              <div className={`font-bold ${w.isPaid ? "text-emerald-400" : w.isDue ? "text-amber-400" : "text-slate-400"}`}>
-                {K(w.amount)}
-              </div>
-              <div className={`text-[10px] font-semibold ${w.isPaid ? "text-emerald-600" : w.isDue ? "text-amber-600" : "text-slate-600"}`}>
-                {w.isPaid ? "PAID" : w.isDue ? "OVERDUE" : "UPCOMING"}
-              </div>
-            </div>
+            ))}
           </div>
-        ))}
-      </div>
+          {/* PDF download */}
+          <div className="px-4 py-3 border-t border-slate-700/60 flex justify-end">
+            <button
+              onClick={e => { e.stopPropagation(); downloadSchedulePDF(); }}
+              className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold bg-indigo-900/30 border border-indigo-700/50 text-indigo-400 hover:bg-indigo-900/50 rounded-xl transition-colors"
+            >
+              <Download size={12} /> Download Schedule (PDF)
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -853,6 +989,7 @@ export default function MyLoansPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [expandedSchedule, setExpandedSchedule] = useState<Set<string>>(new Set());
   const [upgradeTarget, setUpgradeTarget] = useState<LoanApp | null>(null);
   const [reloanTarget, setReloanTarget] = useState<LoanApp | null>(null);
   const [payApp, setPayApp] = useState<LoanApp | null>(null);
@@ -1329,7 +1466,17 @@ export default function MyLoansPage() {
                     )}
 
                     {/* Repayment schedule — for disbursed loans */}
-                    {app.status === "DISBURSED" && <SchedulePanel app={app} />}
+                    {app.status === "DISBURSED" && (
+                      <SchedulePanel
+                        app={app}
+                        expanded={expandedSchedule.has(app.id)}
+                        onToggle={() => setExpandedSchedule(prev => {
+                          const next = new Set(prev);
+                          next.has(app.id) ? next.delete(app.id) : next.add(app.id);
+                          return next;
+                        })}
+                      />
+                    )}
 
                     {/* Upgrade section */}
                     {canUpgrade && (
@@ -1499,7 +1646,17 @@ export default function MyLoansPage() {
                     )}
 
                     {/* Repayment schedule — for completed loans */}
-                    {app.status === "REPAID" && <SchedulePanel app={app} />}
+                    {app.status === "REPAID" && (
+                      <SchedulePanel
+                        app={app}
+                        expanded={expandedSchedule.has(app.id)}
+                        onToggle={() => setExpandedSchedule(prev => {
+                          const next = new Set(prev);
+                          next.has(app.id) ? next.delete(app.id) : next.add(app.id);
+                          return next;
+                        })}
+                      />
+                    )}
 
                     {canReloan && (
                       <div className="bg-emerald-900/20 border border-emerald-800/30 rounded-xl p-4">
