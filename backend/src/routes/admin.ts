@@ -1666,4 +1666,45 @@ router.post("/applications/:id/lift-default", wrap(async (req: Request, res: Res
   res.json({ ok: true, loan: updated });
 }));
 
+// ── PATCH /api/admin/applications/:id/change-duration ─────────────────────────
+// Allows staff to change the loan term (duration in weeks) for an active loan.
+router.patch("/applications/:id/change-duration", wrap(async (req: Request, res: Response) => {
+  const { termMonths, reason } = req.body as { termMonths?: number; reason?: string };
+  if (!termMonths || termMonths < 1 || termMonths > 52) {
+    return res.status(400).json({ error: "Duration must be between 1 and 52 weeks" });
+  }
+  if (!reason || reason.trim().length < 5) {
+    return res.status(400).json({ error: "Reason is required (min 5 characters)" });
+  }
+  const app = await (prisma as any).portalLoanApplication.findUnique({ where: { id: req.params.id } });
+  if (!app) return res.status(404).json({ error: "Loan not found" });
+  if (!["DISBURSED", "APPROVED"].includes(app.status)) {
+    return res.status(400).json({ error: "Can only change duration on active (DISBURSED/APPROVED) loans" });
+  }
+
+  const staffUser = (req as any).user;
+  const updated = await (prisma as any).portalLoanApplication.update({
+    where: { id: req.params.id },
+    data: {
+      termMonths,
+      rejectedReason: `DURATION CHANGED: ${reason} (by ${staffUser?.firstName ?? "Staff"} ${staffUser?.lastName ?? ""})`,
+    },
+  });
+
+  // Audit log
+  try {
+    await (prisma as any).auditLog.create({
+      data: {
+        action: "LOAN_DURATION_CHANGED",
+        resource: "PortalLoanApplication",
+        resourceId: req.params.id,
+        userId: staffUser?.id ?? "system",
+        details: JSON.stringify({ from: app.termMonths, to: termMonths, reason }),
+      },
+    });
+  } catch { /* audit log optional */ }
+
+  res.json({ ok: true, loan: updated, newDuration: termMonths });
+}));
+
 export default router;

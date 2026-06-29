@@ -910,7 +910,7 @@ export default function ClientDashboardPage() {
             </div>
 
             {/* Payment breakdown */}
-            <div className="rounded-xl p-3.5 mb-5"
+            <div className="rounded-xl p-3.5 mb-4"
               style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
               <p className="text-[9px] font-bold uppercase tracking-widest text-slate-600 mb-3">Payment Breakdown</p>
               <div className="space-y-2">
@@ -927,7 +927,6 @@ export default function ClientDashboardPage() {
                   <span className="text-white">Total Due</span>
                   <span style={{ color: "#22c55e" }}>{K(totalDue)}</span>
                 </div>
-                {/* Show paid & outstanding when payments exist */}
                 {totalPaid > 0 && (
                   <>
                     <div className="h-px" style={{ background: "rgba(255,255,255,0.06)" }} />
@@ -949,6 +948,76 @@ export default function ClientDashboardPage() {
                     : `Full payment of ${K(totalDue)} is due on ${dueDateShort}.`}
                 </p>
               )}
+            </div>
+
+            {/* ── CHARGES & PENALTIES — always visible ────────────────── */}
+            <div className="rounded-xl mb-5 overflow-hidden"
+              style={{
+                border: penaltyAmt > 0 ? "1px solid rgba(239,68,68,0.45)" : "1px solid rgba(255,255,255,0.07)",
+                background: penaltyAmt > 0 ? "rgba(239,68,68,0.07)" : "rgba(255,255,255,0.02)",
+              }}>
+              {/* Header */}
+              <div className="flex items-center justify-between px-3.5 py-2.5"
+                style={{ borderBottom: "1px solid rgba(255,255,255,0.05)", background: penaltyAmt > 0 ? "rgba(239,68,68,0.1)" : "transparent" }}>
+                <div className="flex items-center gap-2">
+                  <AlertTriangle size={12} style={{ color: penaltyAmt > 0 ? "#ef4444" : "#64748b" }} />
+                  <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: penaltyAmt > 0 ? "#ef4444" : "#64748b" }}>
+                    Charges &amp; Penalties
+                  </span>
+                </div>
+                {penaltyAmt > 0 ? (
+                  <span className="text-[9px] font-bold px-2 py-0.5 rounded-full text-red-300 bg-red-950/60 border border-red-800/50">ACTIVE</span>
+                ) : (
+                  <span className="text-[9px] font-bold px-2 py-0.5 rounded-full text-emerald-400 bg-emerald-950/40 border border-emerald-800/30">CLEAR</span>
+                )}
+              </div>
+
+              {/* Status row */}
+              <div className="px-3.5 py-3 space-y-2.5">
+                {penaltyAmt > 0 ? (
+                  <>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-red-400/80">Days overdue</span>
+                      <span className="text-sm font-black text-red-400">{daysOverdue} day{daysOverdue !== 1 ? "s" : ""}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-red-400/80">Daily rate</span>
+                      <span className="text-xs font-bold text-red-300">2% × {K(remaining)}</span>
+                    </div>
+                    <div className="h-px" style={{ background: "rgba(239,68,68,0.15)" }} />
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-black text-white">Total Penalty</span>
+                      <span className="text-lg font-black text-red-400">{K(penaltyAmt)}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-black text-white">Amount Now Owed</span>
+                      <span className="text-base font-black" style={{ color: "#ef4444" }}>{K(remaining + penaltyAmt)}</span>
+                    </div>
+                    <p className="text-[10px] text-red-500/70 leading-relaxed pt-0.5">
+                      Penalty grows by {K(remaining * 0.02)} every day until full payment is received. Contact us immediately to avoid further charges.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <div className="flex items-center gap-2 py-1">
+                      <div className="w-6 h-6 rounded-full bg-emerald-900/30 border border-emerald-700/30 flex items-center justify-center flex-shrink-0">
+                        <span className="text-emerald-400 text-xs">✓</span>
+                      </div>
+                      <p className="text-xs font-semibold text-emerald-400">No penalties — you&apos;re on track!</p>
+                    </div>
+                    <div className="h-px" style={{ background: "rgba(255,255,255,0.05)" }} />
+                    <p className="text-[10px] leading-relaxed" style={{ color: "#475569" }}>
+                      <span className="font-bold text-slate-400">Grace period:</span> 3 days after due date.{" "}
+                      <span className="font-bold text-slate-400">Late fee:</span> 2% of outstanding balance per day.{" "}
+                      {overdue
+                        ? <span className="text-amber-500 font-semibold">Your loan is overdue — {daysOverall - daysOverdue < 1 ? "grace period in effect" : `penalty starts in ${GRACE_DAYS - daysOverall} day(s)`}.</span>
+                        : daysUntilDue <= 7 && daysUntilDue >= 0
+                        ? <span className="text-amber-400 font-semibold">Pay before {dueDateShort} to avoid charges.</span>
+                        : "Pay on time to keep your record clean."}
+                    </p>
+                  </>
+                )}
+              </div>
             </div>
 
             {/* Repayment progress bar */}

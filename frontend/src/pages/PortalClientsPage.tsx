@@ -67,6 +67,7 @@ interface AccountDetail extends Account {
   loanApplications: {
     id: string; reference: string; productType: string;
     amountRequested: number; status: string; createdAt: string;
+    termMonths?: number; interestRate?: number;
   }[];
   kycDocuments: { id: string; docType: string; uploadedAt: string }[];
   hasPassword: boolean;
@@ -134,6 +135,13 @@ export default function PortalClientsPage() {
   const [defaultNotify, setDefaultNotify] = useState(true);
   const [defaultLoading, setDefaultLoading] = useState(false);
   const [defaultMsg, setDefaultMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  // Loan duration change
+  const [durationModal, setDurationModal] = useState<{ appId: string; ref: string; currentWeeks: number } | null>(null);
+  const [durationWeeks, setDurationWeeks] = useState("");
+  const [durationReason, setDurationReason] = useState("");
+  const [durationLoading, setDurationLoading] = useState(false);
+  const [durationMsg, setDurationMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   // NOK alert
   const [nokAlertLoading, setNokAlertLoading] = useState(false);
@@ -304,6 +312,31 @@ export default function PortalClientsPage() {
       }
     } catch { setDefaultMsg({ ok: false, text: "Network error" }); }
     finally { setDefaultLoading(false); }
+  }
+
+  async function changeDuration() {
+    if (!durationModal || !durationWeeks || !durationReason.trim()) return;
+    const weeks = parseInt(durationWeeks, 10);
+    if (isNaN(weeks) || weeks < 1 || weeks > 52) {
+      setDurationMsg({ ok: false, text: "Duration must be between 1 and 52 weeks" });
+      return;
+    }
+    setDurationLoading(true); setDurationMsg(null);
+    try {
+      const r = await fetch(`${API}/admin/applications/${durationModal.appId}/change-duration`, {
+        method: "PATCH", headers: authHeaders(),
+        body: JSON.stringify({ termMonths: weeks, reason: durationReason.trim() }),
+      });
+      const d = await r.json();
+      if (r.ok) {
+        setDurationMsg({ ok: true, text: `Loan ${durationModal.ref} duration updated to ${weeks} weeks.` });
+        if (selected) { await loadDetail(selected.id); await loadAccounts(); }
+        setTimeout(() => { setDurationModal(null); setDurationWeeks(""); setDurationReason(""); setDurationMsg(null); }, 2000);
+      } else {
+        setDurationMsg({ ok: false, text: d.error || "Failed to update duration" });
+      }
+    } catch { setDurationMsg({ ok: false, text: "Network error" }); }
+    finally { setDurationLoading(false); }
   }
 
   async function loadCreditScore() {
@@ -861,6 +894,14 @@ export default function PortalClientsPage() {
                                     >
                                       <Send size={10} /> Email
                                     </button>
+                                    {(app.status === "DISBURSED" || app.status === "APPROVED") && (
+                                      <button
+                                        onClick={() => { setDurationModal({ appId: app.id, ref: app.reference, currentWeeks: app.termMonths ?? 4 }); setDurationWeeks(String(app.termMonths ?? 4)); setDurationReason(""); setDurationMsg(null); }}
+                                        className="flex items-center gap-1 text-[10px] font-semibold text-amber-400 bg-amber-900/20 border border-amber-800/30 px-2 py-1 rounded-lg hover:bg-amber-900/40 transition-all whitespace-nowrap"
+                                      >
+                                        ⏱ Change Duration
+                                      </button>
+                                    )}
                                     {app.status === "DISBURSED" && (
                                       <button
                                         onClick={() => { setDefaultModal({ appId: app.id, ref: app.reference }); setDefaultReason(""); setDefaultMsg(null); }}
@@ -954,6 +995,52 @@ export default function PortalClientsPage() {
                         {defaultLoading ? <><span className="w-3 h-3 border border-white/40 border-t-white rounded-full animate-spin" /> Processing…</> : "⚠ Confirm Default Declaration"}
                       </button>
                       <button onClick={() => setDefaultModal(null)} className="text-xs px-4 py-2 rounded-lg border border-slate-700 text-slate-400 hover:bg-slate-800">Cancel</button>
+                    </div>
+                  </div>
+                )}
+
+                {/* ── Change Loan Duration ── */}
+                {durationModal && (
+                  <div className="bg-amber-950/20 border border-amber-700/40 rounded-xl p-4 space-y-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-bold text-amber-300">⏱ Change Loan Duration — {durationModal.ref}</span>
+                      <button onClick={() => setDurationModal(null)} className="ml-auto text-slate-500 hover:text-white"><X size={13} /></button>
+                    </div>
+                    <p className="text-xs text-slate-500">
+                      Current duration: <span className="font-bold text-amber-300">{durationModal.currentWeeks} weeks</span>.
+                      Update the loan term (e.g. extension due to hardship or restructuring). New maturity date recalculates automatically.
+                    </p>
+                    <div className="flex gap-3">
+                      <div className="flex-1">
+                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1 block">New Duration (weeks)</label>
+                        <input
+                          type="number" min={1} max={52} value={durationWeeks}
+                          onChange={e => setDurationWeeks(e.target.value)}
+                          placeholder="e.g. 8"
+                          className="w-full bg-slate-800 border border-amber-700/40 rounded-lg px-3 py-2 text-sm text-amber-300 font-bold focus:outline-none focus:border-amber-500"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1 block">Reason for change (required)</label>
+                      <textarea
+                        value={durationReason} onChange={e => setDurationReason(e.target.value)}
+                        placeholder="e.g. Client requested extension due to medical emergency…"
+                        rows={2}
+                        className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-amber-600 resize-none"
+                      />
+                    </div>
+                    {durationMsg && (
+                      <div className={`text-xs px-3 py-2 rounded-lg ${durationMsg.ok ? "bg-emerald-900/30 text-emerald-300 border border-emerald-800/40" : "bg-red-900/30 text-red-300 border border-red-800/40"}`}>
+                        {durationMsg.text}
+                      </div>
+                    )}
+                    <div className="flex gap-2">
+                      <button onClick={changeDuration} disabled={durationLoading || !durationWeeks || durationReason.trim().length < 5}
+                        className="bg-amber-700 hover:bg-amber-600 text-white text-xs font-bold px-4 py-2 rounded-lg disabled:opacity-50 transition-all flex items-center gap-2">
+                        {durationLoading ? <><span className="w-3 h-3 border border-white/40 border-t-white rounded-full animate-spin" /> Updating…</> : "⏱ Confirm Duration Change"}
+                      </button>
+                      <button onClick={() => setDurationModal(null)} className="text-xs px-4 py-2 rounded-lg border border-slate-700 text-slate-400 hover:bg-slate-800">Cancel</button>
                     </div>
                   </div>
                 )}
