@@ -78,7 +78,7 @@ function SendEmailTab() {
     if (searchTimer.current) clearTimeout(searchTimer.current);
     if (!q || q.length < 2) { setClients([]); return; }
     searchTimer.current = setTimeout(async () => {
-      const token = localStorage.getItem("philix-auth-v3");
+      const token = localStorage.getItem("philix_staff_token");
       const r = await fetch(`/api/emails/clients/search?q=${encodeURIComponent(q)}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -91,7 +91,7 @@ function SendEmailTab() {
   const loadPreview = useCallback(async () => {
     if (!templateKey) return;
     setPreviewLoading(true);
-    const token = localStorage.getItem("philix-auth-v3");
+    const token = localStorage.getItem("philix_staff_token");
     const r = await fetch(`/api/emails/preview/${templateKey}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
@@ -104,7 +104,7 @@ function SendEmailTab() {
   const handleSend = async () => {
     if (!selectedClient) return;
     setSending(true); setResult(null); setShowConfirm(false);
-    const token = localStorage.getItem("philix-auth-v3");
+    const token = localStorage.getItem("philix_staff_token");
     const body: any = { templateKey, accountId: selectedClient.id };
     if (selectedLoan) body.loanId = selectedLoan;
     if (templateKey === "custom") { body.customSubject = customSubject; body.customBody = customBody; }
@@ -121,7 +121,7 @@ function SendEmailTab() {
 
   const handleTestSend = async () => {
     setTestSending(true); setTestResult(null);
-    const token = localStorage.getItem("philix-auth-v3") || localStorage.getItem("philix_staff_token") || "";
+    const token = localStorage.getItem("philix_staff_token") || "";
     const r = await fetch("/api/emails/send-test", {
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
@@ -334,7 +334,7 @@ function BulkSendTab() {
 
   const handleBulkSend = async () => {
     setSending(true); setResult(null); setShowConfirm(false);
-    const token = localStorage.getItem("philix-auth-v3");
+    const token = localStorage.getItem("philix_staff_token");
     const body: any = { templateKey, clientFilter: filter };
     if (templateKey === "custom") { body.params = { customSubject, customBody, staffName: "Staff" }; }
 
@@ -503,7 +503,7 @@ function EmailLogTab() {
 
   const fetchLogs = useCallback(async () => {
     setLoading(true);
-    const token = localStorage.getItem("philix-auth-v3");
+    const token = localStorage.getItem("philix_staff_token");
     const params = new URLSearchParams({ page: String(page), limit: String(limit) });
     Object.entries(filters).forEach(([k, v]) => { if (v) params.set(k, v); });
     const r = await fetch(`/api/emails/log?${params}`, { headers: { Authorization: `Bearer ${token}` } });
@@ -515,7 +515,7 @@ function EmailLogTab() {
 
   const handleRetry = async (id: string) => {
     setRetrying(id);
-    const token = localStorage.getItem("philix-auth-v3");
+    const token = localStorage.getItem("philix_staff_token");
     const r = await fetch(`/api/emails/log/${id}/retry`, {
       method: "POST",
       headers: { Authorization: `Bearer ${token}` },
@@ -691,7 +691,7 @@ function StatsBar() {
   const [stats, setStats] = useState<Stats | null>(null);
 
   useEffect(() => {
-    const token = localStorage.getItem("philix-auth-v3");
+    const token = localStorage.getItem("philix_staff_token");
     fetch("/api/emails/stats", { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.ok ? r.json() : null).then(setStats);
   }, []);

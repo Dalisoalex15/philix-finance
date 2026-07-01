@@ -149,8 +149,10 @@ export interface MailOptions {
 }
 
 export async function sendEmail(opts: MailOptions): Promise<{ ok: boolean; resendId?: string }> {
-  const fromName  = process.env.COMPANY_NAME || "Philix Finance";
-  const fromEmail = process.env.SMTP_FROM    || "noreply@philixfinance.com";
+  const fromName  = process.env.COMPANY_NAME  || "Philix Finance";
+  const fromEmail = process.env.RESEND_API_KEY
+    ? (process.env.RESEND_FROM || "onboarding@resend.dev")
+    : (process.env.SMTP_FROM   || "noreply@philixfinance.com");
   const html = opts.htmlOverride ?? buildBaseHtml(
     "Philix Finance",
     `<p style="font-family:'Segoe UI',Arial,sans-serif;font-size:14px;line-height:1.8;color:#cbd5e1;white-space:pre-wrap;word-break:break-word;">${opts.body}</p>`,

@@ -129,11 +129,11 @@ const emailSendLimiter = rateLimit({
   message: { error: "Email sending limit reached. Please wait before sending more." },
 });
 
-// ── Body parsing — 2 MB max to prevent DoS ────────────────────────────────────
+// ── Body parsing — 20 MB to support base64 photo uploads ─────────────────────
 app.use(globalLimiter);
 app.use(cookieParser());
-app.use(express.json({ limit: "2mb" }));
-app.use(express.urlencoded({ extended: true, limit: "2mb" }));
+app.use(express.json({ limit: "20mb" }));
+app.use(express.urlencoded({ extended: true, limit: "20mb" }));
 
 if (process.env.NODE_ENV !== "test") {
   app.use(morgan("combined", {

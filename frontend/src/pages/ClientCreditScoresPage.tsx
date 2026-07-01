@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Search, RefreshCw, Loader2, ChevronRight } from "lucide-react";
 
 const api = (path: string) => {
-  const token = localStorage.getItem("philix-auth-v3");
+  const token = localStorage.getItem("philix_staff_token");
   return fetch(`/api/financials${path}`, { headers: { Authorization: `Bearer ${token}` } });
 };
 
@@ -50,7 +50,7 @@ export default function ClientCreditScoresPage() {
 
   const recalculate = async (id: string) => {
     setRecalc(id);
-    const token = localStorage.getItem("philix-auth-v3");
+    const token = localStorage.getItem("philix_staff_token");
     await window.fetch(`/api/financials/recalculate-credit/${id}`, {
       method: "POST",
       headers: { Authorization: `Bearer ${token}` },

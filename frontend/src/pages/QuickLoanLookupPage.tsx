@@ -3,7 +3,7 @@ import { Search, User, CreditCard, RefreshCw, ArrowRight, Phone, BadgeCheck } fr
 import { Link } from "react-router-dom";
 
 const API = "/api";
-function getToken() { return localStorage.getItem("philix-auth-v3") ?? ""; }
+function getToken() { return localStorage.getItem("philix_staff_token") ?? ""; }
 function authH() { return { "Content-Type": "application/json", Authorization: `Bearer ${getToken()}` }; }
 const K = (n: number) => `K${n.toLocaleString("en-ZM", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 

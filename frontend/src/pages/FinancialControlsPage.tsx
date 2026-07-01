@@ -7,7 +7,7 @@ import {
 } from "lucide-react";
 
 const api = (path: string, opts?: RequestInit) => {
-  const token = localStorage.getItem("philix-auth-v3");
+  const token = localStorage.getItem("philix_staff_token");
   return fetch(`/api/financials${path}`, {
     ...opts,
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`, ...opts?.headers },
