@@ -32,9 +32,11 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: "Command",
     items: [
-      { to: "/",          Icon: LayoutDashboard, label: "Dashboard" },
-      { to: "/philix-ai", Icon: Brain,           label: "Philix AI",  aiAccent: true },
-      { to: "/search",    Icon: Search,           label: "Quick Lookup" },
+      { to: "/",             Icon: LayoutDashboard, label: "Dashboard" },
+      { to: "/phil-emails",  Icon: Mail,            label: "Phil Emails", newBadge: true },
+      { to: "/ceo",          Icon: Wallet,          label: "CEO Dashboard", roles: ["SUPER_ADMIN", "MANAGER"] },
+      { to: "/philix-ai",    Icon: Brain,           label: "Philix AI",   aiAccent: true },
+      { to: "/search",       Icon: Search,          label: "Quick Lookup" },
     ],
   },
   {
@@ -55,7 +57,6 @@ const NAV_GROUPS: NavGroup[] = [
       { to: "/collections",    Icon: AlertTriangle, label: "Collections" },
       { to: "/credit-scoring", Icon: TrendingUp,    label: "Credit Scoring" },
       { to: "/reports",        Icon: BarChart2,     label: "Reports" },
-      { to: "/ceo",            Icon: Wallet,        label: "CEO Dashboard",  roles: ["SUPER_ADMIN", "MANAGER"] },
       { to: "/client-hub",     Icon: UserCheck,     label: "Client Hub",     newBadge: true },
       { to: "/targets",        Icon: Target,        label: "Targets",        roles: ["SUPER_ADMIN", "MANAGER"] },
       { to: "/financial-statements", Icon: PieChart, label: "Financials",   roles: ["SUPER_ADMIN", "MANAGER"] },
