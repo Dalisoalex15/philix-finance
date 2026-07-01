@@ -738,7 +738,8 @@ export default function EmailCentrePage() {
       <div className="flex items-start justify-between flex-wrap gap-4">
         <div>
           <h1 className="text-2xl font-bold text-[#0B1F3A] flex items-center gap-2">
-            <Mail size={24} className="text-[#C9A227]" /> Email Centre
+            <Mail size={24} className="text-[#C9A227]" /> Email Phil
+            <span className="text-[10px] font-bold bg-emerald-500/15 text-emerald-600 border border-emerald-500/30 px-2 py-0.5 rounded-full tracking-wide">NEW</span>
           </h1>
           <p className="text-sm text-gray-500 mt-1">Send branded emails to clients, run bulk campaigns, and monitor delivery logs.</p>
         </div>

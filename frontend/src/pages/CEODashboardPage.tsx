@@ -409,7 +409,7 @@ export default function CEODashboardPage() {
       <div className="philix-card p-5">
         <div className="flex items-center justify-between mb-4">
           <h3 className="section-title flex items-center gap-2"><Mail size={16} className="text-[#C9A227]" />Quick Email Send</h3>
-          <a href="/email-centre" className="text-xs text-indigo-600 hover:underline flex items-center gap-1 font-semibold">Full Email Centre <ChevronRight size={12} /></a>
+          <a href="/email-centre" className="text-xs text-indigo-600 hover:underline flex items-center gap-1 font-semibold">Email Phil <ChevronRight size={12} /></a>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <div>

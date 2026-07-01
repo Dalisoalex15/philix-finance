@@ -3,7 +3,7 @@ import { cn } from "../../lib/utils";
 import {
   LayoutDashboard, Users, CreditCard, Receipt, AlertTriangle, BarChart2,
   UserCog, Settings, ChevronLeft, ChevronRight, BookOpen,
-  FileText, Brain, LogOut, TrendingUp, Wallet, ScanLine,
+  FileText, Brain, LogOut, TrendingUp, Wallet, ScanLine, Mail,
 } from "lucide-react";
 import { useAuthStore } from "../../store/auth";
 import { useLoanApplicationStore } from "../../store/loanApplicationStore";
@@ -20,6 +20,7 @@ interface NavItem {
   liveCount?: boolean;
   proofCount?: boolean;
   aiAccent?: boolean;
+  newBadge?: boolean;
 }
 
 interface NavGroup { label: string; items: NavItem[]; }
@@ -55,8 +56,9 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: "Admin",
     items: [
-      { to: "/users",    Icon: UserCog, label: "Staff Management", roles: ["SUPER_ADMIN"] },
-      { to: "/settings", Icon: Settings, label: "Settings",        roles: ["SUPER_ADMIN"] },
+      { to: "/email-centre", Icon: Mail,     label: "Email Phil",       newBadge: true, roles: ["SUPER_ADMIN", "MANAGER"] },
+      { to: "/users",        Icon: UserCog,  label: "Staff Management", roles: ["SUPER_ADMIN"] },
+      { to: "/settings",     Icon: Settings, label: "Settings",         roles: ["SUPER_ADMIN"] },
     ],
   },
 ];
@@ -162,6 +164,11 @@ export default function Sidebar({ open, onToggle }: SidebarProps) {
                       {open && (
                         <>
                           <span className="flex-1 truncate text-[13px]">{item.label}</span>
+                          {item.newBadge && !count && (
+                            <span className="ml-auto text-[9px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-1.5 py-0.5 rounded-full tracking-wide">
+                              NEW
+                            </span>
+                          )}
                           {count > 0 && (
                             <span className="ml-auto text-[10px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30 px-1.5 py-0.5 rounded-full min-w-[20px] text-center">
                               {count > 99 ? "99+" : count}
