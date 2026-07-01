@@ -4,6 +4,9 @@ import {
   LayoutDashboard, Users, CreditCard, Receipt, AlertTriangle, BarChart2,
   UserCog, Settings, ChevronLeft, ChevronRight, BookOpen,
   FileText, Brain, LogOut, TrendingUp, Wallet, ScanLine, Mail,
+  CheckSquare, Calendar, ClipboardList, ShieldCheck, ShoppingCart,
+  Package, Megaphone, Radio, BookMarked, MessageSquare, Layers,
+  PieChart, Target, Search,
 } from "lucide-react";
 import { useAuthStore } from "../../store/auth";
 import { useLoanApplicationStore } from "../../store/loanApplicationStore";
@@ -31,34 +34,60 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { to: "/",          Icon: LayoutDashboard, label: "Dashboard" },
       { to: "/philix-ai", Icon: Brain,           label: "Philix AI",  aiAccent: true },
+      { to: "/search",    Icon: Search,           label: "Quick Lookup" },
     ],
   },
   {
     label: "Lending",
     items: [
-      { to: "/online-applications",  Icon: FileText,   label: "Applications",   liveCount: true },
+      { to: "/online-applications",  Icon: FileText,   label: "Applications",    liveCount: true },
       { to: "/clients",              Icon: Users,      label: "Clients" },
       { to: "/loans",                Icon: CreditCard, label: "Loans" },
       { to: "/repayments",           Icon: Receipt,    label: "Repayments" },
-      { to: "/payment-submissions",  Icon: ScanLine,   label: "Payment Proofs", proofCount: true },
+      { to: "/payment-submissions",  Icon: ScanLine,   label: "Payment Proofs",  proofCount: true },
       { to: "/accounts-management",  Icon: BookOpen,   label: "Accounts Centre", roles: ["SUPER_ADMIN", "MANAGER"] },
+      { to: "/collateral",           Icon: Package,    label: "Collateral Vault" },
     ],
   },
   {
-    label: "Risk",
+    label: "Risk & Reports",
     items: [
       { to: "/collections",    Icon: AlertTriangle, label: "Collections" },
       { to: "/credit-scoring", Icon: TrendingUp,    label: "Credit Scoring" },
       { to: "/reports",        Icon: BarChart2,     label: "Reports" },
       { to: "/ceo",            Icon: Wallet,        label: "CEO Dashboard", roles: ["SUPER_ADMIN", "MANAGER"] },
+      { to: "/targets",        Icon: Target,        label: "Targets",       roles: ["SUPER_ADMIN", "MANAGER"] },
+      { to: "/financial-statements", Icon: PieChart, label: "Financials",   roles: ["SUPER_ADMIN", "MANAGER"] },
+    ],
+  },
+  {
+    label: "Operations",
+    items: [
+      { to: "/tasks",        Icon: CheckSquare,   label: "Tasks" },
+      { to: "/leave",        Icon: Calendar,      label: "Leave Management" },
+      { to: "/meetings",     Icon: ClipboardList, label: "Meeting Minutes" },
+      { to: "/compliance",   Icon: ShieldCheck,   label: "Compliance" },
+      { to: "/procurement",  Icon: ShoppingCart,  label: "Procurement" },
+      { to: "/assets",       Icon: Package,       label: "Asset Register" },
+    ],
+  },
+  {
+    label: "Communications",
+    items: [
+      { to: "/email-logs",       Icon: Mail,         label: "Email Logs" },
+      { to: "/email-centre",     Icon: Mail,         label: "Email Phil",        newBadge: true, roles: ["SUPER_ADMIN", "MANAGER"] },
+      { to: "/announcements",    Icon: Megaphone,    label: "Announcements" },
+      { to: "/client-broadcasts",Icon: Radio,        label: "Client Broadcasts" },
+      { to: "/wiki",             Icon: BookMarked,   label: "Knowledge Base" },
+      { to: "/sms-notifications",Icon: MessageSquare,label: "SMS Notifications" },
     ],
   },
   {
     label: "Admin",
     items: [
-      { to: "/email-centre", Icon: Mail,     label: "Email Phil",       newBadge: true, roles: ["SUPER_ADMIN", "MANAGER"] },
-      { to: "/users",        Icon: UserCog,  label: "Staff Management", roles: ["SUPER_ADMIN"] },
-      { to: "/settings",     Icon: Settings, label: "Settings",         roles: ["SUPER_ADMIN"] },
+      { to: "/portal-clients", Icon: Layers,   label: "Portal Clients",   roles: ["SUPER_ADMIN", "MANAGER"] },
+      { to: "/users",          Icon: UserCog,  label: "Staff Management", roles: ["SUPER_ADMIN"] },
+      { to: "/settings",       Icon: Settings, label: "Settings",         roles: ["SUPER_ADMIN"] },
     ],
   },
 ];
