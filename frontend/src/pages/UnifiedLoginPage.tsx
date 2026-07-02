@@ -37,7 +37,6 @@ export default function UnifiedLoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [accountType, setAccountType] = useState<"auto" | "staff" | "client">("auto");
   const [testimonialIdx, setTestimonialIdx] = useState(0);
 
   useEffect(() => {
@@ -55,7 +54,6 @@ export default function UnifiedLoginPage() {
   }, []);
 
   const resolvedType = (() => {
-    if (accountType !== "auto") return accountType;
     if (!email) return null;
     if (email.toLowerCase().endsWith("@philixfinance.com")) return "staff";
     return "client";
@@ -230,30 +228,6 @@ export default function UnifiedLoginPage() {
             <p className="text-slate-500 text-sm mt-1">Sign in to your Philix Finance account</p>
           </div>
 
-          {/* Account type selector */}
-          <div className="mb-5">
-            <p className="text-[10px] font-bold text-slate-600 uppercase tracking-widest mb-2">Signing in as</p>
-            <div className="grid grid-cols-2 gap-2">
-              {([
-                { value: "client", label: "Client",      icon: Users,  desc: "Client portal",     colors: "border-[#C9A227]/60 bg-[#C9A227]/10 text-[#C9A227]" },
-                { value: "staff",  label: "Staff / CEO", icon: Shield, desc: "Operations portal", colors: "border-indigo-500/60 bg-indigo-500/10 text-indigo-300" },
-              ] as const).map(opt => (
-                <button key={opt.value} type="button" onClick={() => setAccountType(opt.value)}
-                  className={`flex items-center gap-2.5 px-4 py-3 rounded-xl border-2 text-left transition-all ${
-                    (accountType === opt.value || (accountType === "auto" && resolvedType === opt.value))
-                      ? opt.colors
-                      : "border-white/8 bg-white/[0.03] text-slate-600 hover:border-white/15 hover:text-slate-400"
-                  }`}>
-                  <opt.icon size={15} className="flex-shrink-0" />
-                  <div>
-                    <div className="text-sm font-bold leading-tight">{opt.label}</div>
-                    <div className="text-[10px] opacity-60">{opt.desc}</div>
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
-
           {error && (
             <div className="mb-4 bg-red-900/20 border border-red-700/40 rounded-xl p-3 flex items-center gap-2 text-red-300 text-sm">
               <AlertCircle size={14} className="flex-shrink-0" /> {error}
@@ -320,9 +294,6 @@ export default function UnifiedLoginPage() {
             </div>
           </div>
 
-          <p className="text-center text-[11px] text-slate-700 mt-5">
-            Staff accounts are managed by your administrator.
-          </p>
         </div>
       </div>
     </div>
