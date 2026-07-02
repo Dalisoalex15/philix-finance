@@ -12,33 +12,41 @@ const SIZE_MAP = {
   xl:  { full: { h: 64,  iconW: 60,  iconH: 60  }, icon: { w: 72,  h: 72  } },
 };
 
-function SwooshIcon({ w, h, id }: { w: number; h: number; id: string }) {
+function EmblemIcon({ w, h, id }: { w: number; h: number; id: string }) {
   return (
     <svg width={w} height={h} viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
       <defs>
-        <radialGradient id={`gold-${id}`} cx="60%" cy="35%" r="65%">
-          <stop offset="0%" stopColor="#FFD166" />
-          <stop offset="100%" stopColor="#E8940A" />
-        </radialGradient>
-        <radialGradient id={`silver-${id}`} cx="40%" cy="65%" r="65%">
-          <stop offset="0%" stopColor="#C8C8C8" />
-          <stop offset="100%" stopColor="#7A7A7A" />
-        </radialGradient>
+        <linearGradient id={`gold-${id}`} x1="10%" y1="10%" x2="90%" y2="90%">
+          <stop offset="0%" stopColor="#F5C842" />
+          <stop offset="50%" stopColor="#D4920A" />
+          <stop offset="100%" stopColor="#B87408" />
+        </linearGradient>
+        <linearGradient id={`silver-${id}`} x1="90%" y1="90%" x2="10%" y2="10%">
+          <stop offset="0%" stopColor="#D8D8D8" />
+          <stop offset="50%" stopColor="#A8A8A8" />
+          <stop offset="100%" stopColor="#707070" />
+        </linearGradient>
       </defs>
 
-      {/* Golden swoosh — upper right, arcs outward */}
+      {/* Gold crescent — right / upper portion */}
       <path
-        d="M33 5 C48 5 60 17 60 32 C60 42 55 50 47 54
-           C43 56 39 56 36 54 C32 52 30 48 31 43
-           C32 38 36 33 38 27 C40 20 39 11 33 5 Z"
+        d="M32 3
+           C49 3, 61 15, 61 32
+           C61 49, 49 61, 32 61
+           C36 52, 38 44, 37 36
+           C36 28, 32 22, 32 14
+           C32 9, 32 6, 32 3 Z"
         fill={`url(#gold-${id})`}
       />
 
-      {/* Silver swoosh — lower left, arcs outward */}
+      {/* Silver crescent — left / lower portion */}
       <path
-        d="M31 59 C16 59 4 47 4 32 C4 22 9 14 17 10
-           C21 8 25 8 28 10 C32 12 34 16 33 21
-           C32 26 28 31 26 37 C24 44 25 53 31 59 Z"
+        d="M32 61
+           C15 61, 3 49, 3 32
+           C3 15, 15 3, 32 3
+           C28 12, 26 20, 27 28
+           C28 36, 32 42, 32 50
+           C32 55, 32 58, 32 61 Z"
         fill={`url(#silver-${id})`}
       />
     </svg>
@@ -52,23 +60,23 @@ export default function PhilixLogo({ variant = "full", size = "md", onDark = fal
     const { w, h } = s.icon;
     return (
       <span className={className} style={{ display: "inline-flex" }}>
-        <SwooshIcon w={w} h={h} id={`icon-${size}`} />
+        <EmblemIcon w={w} h={h} id={`icon-${size}`} />
       </span>
     );
   }
 
-  // Full lockup: swoosh icon + wordmark
+  // Full lockup: emblem icon + wordmark
   const { h, iconW, iconH } = s.full;
   const gap = 10;
-  const textAreaW = 110;
+  const textAreaW = 115;
   const totalW = iconW + gap + textAreaW;
   const philixSize = h * 0.44;
   const financeSize = h * 0.26;
   const textX = iconW + gap;
-  const philixY = h * 0.5;
-  const financeY = h * 0.84;
-  const wordmarkColor = onDark ? "#FFFFFF" : "#0F172A";
-  const subColor = onDark ? "rgba(255,255,255,0.55)" : "#64748B";
+  const philixY = h * 0.48;
+  const financeY = h * 0.82;
+  const wordmarkColor = onDark ? "#FFFFFF" : "#0B1F3A";
+  const subColor = onDark ? "rgba(255,255,255,0.6)" : "#C9A227";
 
   return (
     <svg
@@ -80,28 +88,30 @@ export default function PhilixLogo({ variant = "full", size = "md", onDark = fal
       className={className}
     >
       <defs>
-        <radialGradient id={`gold-full-${size}`} cx="60%" cy="35%" r="65%">
-          <stop offset="0%" stopColor="#FFD166" />
-          <stop offset="100%" stopColor="#E8940A" />
-        </radialGradient>
-        <radialGradient id={`silver-full-${size}`} cx="40%" cy="65%" r="65%">
-          <stop offset="0%" stopColor="#C8C8C8" />
-          <stop offset="100%" stopColor="#7A7A7A" />
-        </radialGradient>
+        <linearGradient id={`gold-full-${size}`} x1="10%" y1="10%" x2="90%" y2="90%">
+          <stop offset="0%" stopColor="#F5C842" />
+          <stop offset="50%" stopColor="#D4920A" />
+          <stop offset="100%" stopColor="#B87408" />
+        </linearGradient>
+        <linearGradient id={`silver-full-${size}`} x1="90%" y1="90%" x2="10%" y2="10%">
+          <stop offset="0%" stopColor="#D8D8D8" />
+          <stop offset="50%" stopColor="#A8A8A8" />
+          <stop offset="100%" stopColor="#707070" />
+        </linearGradient>
       </defs>
 
-      {/* Golden swoosh */}
+      {/* Emblem scaled to iconW × iconH */}
       <g transform={`scale(${iconW / 64} ${iconH / 64})`}>
         <path
-          d="M33 5 C48 5 60 17 60 32 C60 42 55 50 47 54
-             C43 56 39 56 36 54 C32 52 30 48 31 43
-             C32 38 36 33 38 27 C40 20 39 11 33 5 Z"
+          d="M32 3 C49 3, 61 15, 61 32 C61 49, 49 61, 32 61
+             C36 52, 38 44, 37 36 C36 28, 32 22, 32 14
+             C32 9, 32 6, 32 3 Z"
           fill={`url(#gold-full-${size})`}
         />
         <path
-          d="M31 59 C16 59 4 47 4 32 C4 22 9 14 17 10
-             C21 8 25 8 28 10 C32 12 34 16 33 21
-             C32 26 28 31 26 37 C24 44 25 53 31 59 Z"
+          d="M32 61 C15 61, 3 49, 3 32 C3 15, 15 3, 32 3
+             C28 12, 26 20, 27 28 C28 36, 32 42, 32 50
+             C32 55, 32 58, 32 61 Z"
           fill={`url(#silver-full-${size})`}
         />
       </g>
@@ -110,7 +120,7 @@ export default function PhilixLogo({ variant = "full", size = "md", onDark = fal
       <text
         x={textX}
         y={philixY}
-        fontFamily="'Inter', 'Segoe UI', system-ui, sans-serif"
+        fontFamily="'Clash Grotesk', 'Inter', 'Segoe UI', system-ui, sans-serif"
         fontWeight="800"
         fontSize={philixSize}
         fill={wordmarkColor}
@@ -124,8 +134,8 @@ export default function PhilixLogo({ variant = "full", size = "md", onDark = fal
       <text
         x={textX}
         y={financeY}
-        fontFamily="'Inter', 'Segoe UI', system-ui, sans-serif"
-        fontWeight="500"
+        fontFamily="'Clash Grotesk', 'Inter', 'Segoe UI', system-ui, sans-serif"
+        fontWeight="600"
         fontSize={financeSize}
         fill={subColor}
         letterSpacing="2.5"

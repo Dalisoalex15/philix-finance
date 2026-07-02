@@ -237,8 +237,8 @@ router.post("/staff-register", wrap(async (req: Request, res: Response) => {
     return res.status(403).json({ error: "Invalid admin authorisation code" });
   }
 
-  if (!email || !email.toLowerCase().trim().endsWith("@philixfinance.com")) {
-    return res.status(400).json({ error: "Must use a @philixfinance.com email address" });
+  if (!email || !email.includes("@")) {
+    return res.status(400).json({ error: "A valid email address is required" });
   }
 
   if (!password || password.length < 8) {

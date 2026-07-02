@@ -6,7 +6,7 @@ import {
   LogOut, Bell, Menu, X, Shield, Phone, ChevronRight,
   Zap, Home, Calculator, BarChart2, Users, HelpCircle,
   ClipboardList, TrendingUp, Sparkles, Calendar, RefreshCw,
-  Folder, MessageSquare, Download,
+  Folder, MessageSquare, Download, Star, LineChart,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import PhilixLogo from "../ui/PhilixLogo";
@@ -36,11 +36,13 @@ const navGroups = [
   {
     label: "My Account",
     items: [
-      { href: "/portal/credit-score",  icon: BarChart2, label: "Credit Score",          color: "text-violet-400" },
-      { href: "/portal/documents",     icon: Folder,    label: "Document Centre",        color: "text-amber-400", badge: "NEW" },
-      { href: "/portal/statement",     icon: TrendingUp,label: "Statements",             color: "text-sky-400" },
-      { href: "/portal/invest",        icon: TrendingUp,label: "Invest",                 color: "text-indigo-400" },
-      { href: "/portal/referral",      icon: Users,     label: "Refer & Earn",           color: "text-orange-400" },
+      { href: "/portal/credit-score",     icon: BarChart2,   label: "Credit Score",          color: "text-violet-400" },
+      { href: "/portal/reputation",       icon: Star,        label: "My Reputation",         color: "text-amber-400", badge: "NEW" },
+      { href: "/portal/repayment-planner",icon: LineChart,   label: "Repayment Planner",     color: "text-indigo-400", badge: "NEW" },
+      { href: "/portal/documents",        icon: Folder,      label: "Document Centre",       color: "text-amber-400" },
+      { href: "/portal/statement",        icon: TrendingUp,  label: "Statements",            color: "text-sky-400" },
+      { href: "/portal/invest",           icon: TrendingUp,  label: "Invest",                color: "text-indigo-400" },
+      { href: "/portal/referral",         icon: Users,       label: "Refer & Earn",          color: "text-orange-400" },
     ],
   },
   {

@@ -60,6 +60,8 @@ export interface LoanApplication {
   studentInstitution?: string;
   studentSponsor?: string;
   studentGradYear?: string;
+  // Branch
+  branchName?: string;
   // Auto-computed risk assessment (populated after backend sync)
   riskScore?: number;
   riskCategory?: string;
@@ -157,6 +159,7 @@ function fromApiApp(a: StaffPortalApplication): LoanApplication {
     studentInstitution: a.studentInstitution,
     studentSponsor: a.studentSponsor,
     studentGradYear: a.studentGradYear,
+    branchName: a.branchName,
     riskScore: a.riskScore,
     riskCategory: a.riskCategory,
     coverageRatio: a.coverageRatio,

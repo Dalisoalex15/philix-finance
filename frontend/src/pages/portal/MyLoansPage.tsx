@@ -1270,6 +1270,86 @@ export default function MyLoansPage() {
         <div className="bg-red-900/20 border border-red-800/40 rounded-xl p-4 text-sm text-red-400">{error}</div>
       )}
 
+      {/* First-time CTA — shown when client has never applied */}
+      {!loading && apps.length === 0 && (
+        <div className="rounded-2xl overflow-hidden"
+          style={{ background: "linear-gradient(135deg, #0B1F3A 0%, #0f2a4a 100%)", border: "1px solid rgba(201,168,76,0.25)" }}>
+          <div className="p-6 text-center space-y-4">
+            <div className="w-16 h-16 rounded-full mx-auto flex items-center justify-center"
+              style={{ background: "rgba(201,168,76,0.12)", border: "1px solid rgba(201,168,76,0.3)" }}>
+              <Sparkles size={28} style={{ color: "#C9A84C" }} />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-white mb-2">Ready for your first loan?</h2>
+              <p className="text-slate-400 text-sm max-w-sm mx-auto">
+                Get funded in as little as 15 minutes. Pick a product, set your term, and submit your application — all from here.
+              </p>
+            </div>
+            <div className="grid grid-cols-3 gap-3 text-xs">
+              {[
+                { label: "Up to", value: "K200,000", sub: "available" },
+                { label: "From", value: "10%", sub: "flat rate" },
+                { label: "As fast as", value: "15 min", sub: "approval" },
+              ].map(s => (
+                <div key={s.label} className="rounded-xl py-3 px-2"
+                  style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+                  <div className="text-slate-500 mb-0.5">{s.label}</div>
+                  <div className="font-black text-base" style={{ color: "#C9A84C" }}>{s.value}</div>
+                  <div className="text-slate-600">{s.sub}</div>
+                </div>
+              ))}
+            </div>
+            <Link to="/portal/apply"
+              className="inline-flex items-center gap-2 font-bold text-sm px-6 py-3 rounded-xl transition-all"
+              style={{ background: "#C9A84C", color: "#0B1F3A" }}>
+              <Zap size={15} /> Apply for Your First Loan
+            </Link>
+          </div>
+        </div>
+      )}
+
+      {/* Returning Client Offer — eligible for another loan with no active/pending apps */}
+      {!loading && apps.length > 0 && historyApps.filter(a => a.status === "REPAID").length > 0 &&
+        !activeApps.some(a => ["SUBMITTED","UNDER_REVIEW","APPROVED"].includes(a.status)) && (
+        <div className="rounded-2xl overflow-hidden"
+          style={{ background: "linear-gradient(135deg, #052515 0%, #0a2d1c 100%)", border: "1px solid rgba(34,197,94,0.25)" }}>
+          <div className="p-5">
+            <div className="flex items-start gap-4">
+              <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0"
+                style={{ background: "rgba(34,197,94,0.12)", border: "1px solid rgba(34,197,94,0.3)" }}>
+                <TrendingUp size={20} className="text-emerald-400" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-1 flex-wrap">
+                  <span className="font-bold text-emerald-300">Returning Client Offer</span>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-900/50 text-emerald-400 border border-emerald-800/50">
+                    PRE-APPROVED
+                  </span>
+                </div>
+                <p className="text-xs text-slate-400 mb-3">
+                  You have {historyApps.filter(a => a.status === "REPAID").length} repaid loan{historyApps.filter(a => a.status === "REPAID").length > 1 ? "s" : ""} — your loyalty earns you priority processing and a higher limit.
+                </p>
+                <div className="flex items-center gap-3 flex-wrap">
+                  {historyApps.find(a => a.status === "REPAID") ? (
+                    <button
+                      onClick={() => setReloanTarget(historyApps.find(a => a.status === "REPAID")!)}
+                      className="flex items-center gap-2 text-xs font-bold px-4 py-2.5 rounded-xl transition-all"
+                      style={{ background: "rgba(34,197,94,0.15)", border: "1px solid rgba(34,197,94,0.35)", color: "#4ade80" }}>
+                      <RefreshCw size={12} /> Apply Again (1 tap)
+                    </button>
+                  ) : null}
+                  <Link to="/portal/apply"
+                    className="flex items-center gap-2 text-xs font-bold px-4 py-2.5 rounded-xl transition-all"
+                    style={{ background: "rgba(201,168,76,0.12)", border: "1px solid rgba(201,168,76,0.3)", color: "#C9A84C" }}>
+                    <Zap size={12} /> New Application
+                  </Link>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Active applications */}
       {!loading && activeApps.length > 0 && (
         <div className="space-y-3">
@@ -1540,8 +1620,8 @@ export default function MyLoansPage() {
         </div>
       )}
 
-      {/* Loan Renewal CTA — shown when a disbursed loan is 90%+ through its term */}
-      {!loading && activeApps.filter(a => a.status === "DISBURSED" && pct(a) >= 90).map(app => (
+      {/* Loan Renewal CTA — shown when a disbursed loan is 70%+ through its term */}
+      {!loading && activeApps.filter(a => a.status === "DISBURSED" && pct(a) >= 70).map(app => (
         <div key={`renew-${app.id}`} className="bg-gradient-to-r from-indigo-900/40 to-purple-900/30 border border-indigo-700/50 rounded-2xl p-5">
           <div className="flex items-start gap-4">
             <div className="w-10 h-10 rounded-xl bg-indigo-600/30 flex items-center justify-center flex-shrink-0">
@@ -1573,7 +1653,8 @@ export default function MyLoansPage() {
 
           {historyApps.map(app => {
             const isOpen = expanded === app.id;
-            const canReloan = CAN_RELOAN.includes(app.status) && !activeApps.some(a => ACTIVE.includes(a.status));
+            // Block reloan only if there's a PENDING/UNDER_REVIEW/APPROVED loan (not DISBURSED — allowed)
+            const canReloan = CAN_RELOAN.includes(app.status) && !activeApps.some(a => ["SUBMITTED","UNDER_REVIEW","APPROVED"].includes(a.status));
 
             return (
               <div key={app.id} className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden">

@@ -49,6 +49,7 @@ interface Account {
   gender: string | null;
   address: string | null;
   city: string | null;
+  branchName: string | null;
   occupation: string | null;
   employer: string | null;
   monthlyIncome: number | null;
@@ -82,6 +83,7 @@ export default function PortalClientsPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
+  const [branchFilter, setBranchFilter] = useState("ALL");
   const [selected, setSelected] = useState<AccountDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [expandedSection, setExpandedSection] = useState<string | null>("creds");
@@ -387,7 +389,8 @@ export default function PortalClientsPage() {
       (a.phone || "").includes(q)
     );
     const matchStatus = statusFilter === "ALL" || a.status === statusFilter;
-    return matchSearch && matchStatus;
+    const matchBranch = branchFilter === "ALL" || a.branchName === branchFilter;
+    return matchSearch && matchStatus && matchBranch;
   });
 
   const toggleSection = (s: string) => setExpandedSection(prev => prev === s ? null : s);
@@ -445,6 +448,25 @@ export default function PortalClientsPage() {
           <option value="SUSPENDED">Suspended</option>
           <option value="BLACKLISTED">Blacklisted</option>
         </select>
+        <select
+          value={branchFilter}
+          onChange={e => setBranchFilter(e.target.value)}
+          className="bg-slate-800 border border-slate-700 rounded-xl text-sm text-slate-200 px-3 py-2 focus:outline-none focus:border-indigo-500"
+        >
+          <option value="ALL">All Branches</option>
+          <option value="Lusaka Main">Lusaka — Main</option>
+          <option value="Lusaka Kalingalinga">Lusaka — Kalingalinga</option>
+          <option value="Lusaka Matero">Lusaka — Matero</option>
+          <option value="Ndola">Ndola</option>
+          <option value="Kitwe">Kitwe</option>
+          <option value="Livingstone">Livingstone</option>
+          <option value="Kabwe">Kabwe</option>
+          <option value="Chipata">Chipata</option>
+          <option value="Solwezi">Solwezi</option>
+          <option value="Kasama">Kasama</option>
+          <option value="Mansa">Mansa</option>
+          <option value="Mongu">Mongu</option>
+        </select>
         <span className="text-xs text-slate-500">{filtered.length} accounts</span>
       </div>
 
@@ -461,6 +483,7 @@ export default function PortalClientsPage() {
                 <th>Client</th>
                 <th>Email</th>
                 <th>Phone</th>
+                <th>Branch</th>
                 <th>Status</th>
                 <th>KYC</th>
                 <th>Loans</th>
@@ -477,6 +500,13 @@ export default function PortalClientsPage() {
                   </td>
                   <td className="text-sm text-slate-400">{a.email}</td>
                   <td className="text-sm text-slate-400">{a.phone || "—"}</td>
+                  <td className="text-xs text-slate-300">
+                    {a.branchName ? (
+                      <span className="bg-amber-900/30 text-amber-400 border border-amber-800/40 px-2 py-0.5 rounded-full text-[10px] font-semibold whitespace-nowrap">
+                        {a.branchName}
+                      </span>
+                    ) : <span className="text-slate-600">—</span>}
+                  </td>
                   <td>{statusBadge(a.status)}</td>
                   <td>{kycBadge(a.kycStatus)}</td>
                   <td className="text-center text-sm text-slate-300">{a._count.loanApplications}</td>
@@ -745,6 +775,7 @@ export default function PortalClientsPage() {
                         { icon: Phone,      label: "Phone",        value: selected.phone },
                         { icon: MapPin,     label: "City",         value: selected.city },
                         { icon: MapPin,     label: "Address",      value: selected.address },
+                        { icon: MapPin,     label: "Branch",       value: (selected as any).branchName ?? "—" },
                         { icon: Calendar,   label: "Date of Birth",value: selected.dateOfBirth ? new Date(selected.dateOfBirth).toLocaleDateString() : "—" },
                         { icon: Users,      label: "Gender",       value: selected.gender ?? "—" },
                         { icon: BadgeCheck, label: "NRC Number",   value: selected.nrcNumber ?? "—" },

@@ -123,6 +123,8 @@ router.post("/", wrap(async (req: Request, res: Response) => {
     guarantorName, guarantorPhone, guarantorEmployer, guarantorRelation,
     // Student-specific
     studentInstitution, studentSponsor, studentGradYear,
+    // Branch
+    branchName,
   } = req.body;
 
   if (!productType || !amountRequested || !termMonths || !purpose) {
@@ -218,6 +220,8 @@ router.post("/", wrap(async (req: Request, res: Response) => {
       studentInstitution: studentInstitution ?? null,
       studentSponsor: studentSponsor ?? null,
       studentGradYear: studentGradYear ?? null,
+      // Branch
+      branchName: branchName ?? null,
       // Auto-computed risk assessment
       riskScore: assessment.overallScore,
       riskCategory: assessment.riskCategory,
@@ -342,12 +346,12 @@ router.post("/:appId/reloan", wrap(async (req: Request, res: Response) => {
   });
   if (!sourceApp) throw new AppError("Application not found", 404);
 
-  // Block if there's already an active application
+  // Block if there's already a pending/approved application (not DISBURSED — clients can reloan while repaying)
   const conflict = await prisma.portalLoanApplication.findFirst({
-    where: { accountId, status: { in: ["SUBMITTED", "UNDER_REVIEW", "APPROVED", "DISBURSED"] } },
+    where: { accountId, status: { in: ["SUBMITTED", "UNDER_REVIEW", "APPROVED"] } },
   });
   if (conflict) {
-    throw new AppError("You already have an active loan application. Wait for it to be disbursed before reloaning.", 400);
+    throw new AppError("You already have a loan application in progress. Wait for it to be approved or rejected before applying again.", 400);
   }
 
   const { amountRequested, termWeeks, purpose } = req.body as {
@@ -356,29 +360,67 @@ router.post("/:appId/reloan", wrap(async (req: Request, res: Response) => {
 
   const reference = genRef();
   const basePurpose = purpose || sourceApp.purpose || "";
-  const reloan = await prisma.portalLoanApplication.create({
+  const newAmount = amountRequested ? parseFloat(String(amountRequested)) : sourceApp.amountRequested;
+  const newTerms  = termWeeks ? parseInt(String(termWeeks)) : sourceApp.termMonths;
+  // Use stored rate from source; if term changed, compute fallback
+  const RELOAN_RATES: Record<number, number> = { 1: 10, 2: 20, 3: 30, 4: 35 };
+  const resolvedRate = (sourceApp as any).interestRate
+    ? (termWeeks ? (RELOAN_RATES[newTerms] ?? 35) : (sourceApp as any).interestRate)
+    : (RELOAN_RATES[newTerms] ?? 35);
+
+  const reloan = await (prisma.portalLoanApplication as any).create({
     data: {
       reference,
       accountId,
       productType: sourceApp.productType,
-      amountRequested: amountRequested ? parseFloat(String(amountRequested)) : sourceApp.amountRequested,
-      termMonths: termWeeks ? parseInt(String(termWeeks)) : sourceApp.termMonths,
+      amountRequested: newAmount,
+      termMonths: newTerms,
+      interestRate: resolvedRate,
       purpose: basePurpose,
-      description: `RELOAN_FROM:${sourceApp.reference}${sourceApp.description ? ` | ${sourceApp.description}` : ""}`,
+      description: `RELOAN_FROM:${sourceApp.reference}`,
+      // Carry over all borrower details so client doesn't need to re-enter
       occupation: sourceApp.occupation,
       employer: sourceApp.employer,
       employerPhone: sourceApp.employerPhone,
       monthlyIncome: sourceApp.monthlyIncome,
       payDate: sourceApp.payDate,
+      // Extended borrower info
+      nrcNumber: (sourceApp as any).nrcNumber,
+      physicalAddress: (sourceApp as any).physicalAddress,
+      employmentType: (sourceApp as any).employmentType,
+      payrollNumber: (sourceApp as any).payrollNumber,
+      department: (sourceApp as any).department,
+      yearsInService: (sourceApp as any).yearsInService,
+      netSalaryAvailable: (sourceApp as any).netSalaryAvailable,
+      existingLoanDeductions: (sourceApp as any).existingLoanDeductions,
+      // Collateral (carry over, client can update after if needed)
       collateralType: sourceApp.collateralType,
       collateralDesc: sourceApp.collateralDesc,
       collateralValue: sourceApp.collateralValue,
+      collateralCondition: (sourceApp as any).collateralCondition,
+      collateralYear: (sourceApp as any).collateralYear,
+      collateralSerial: (sourceApp as any).collateralSerial,
+      collateralOwner: (sourceApp as any).collateralOwner,
+      hasOwnershipDocs: (sourceApp as any).hasOwnershipDocs ?? false,
+      hasInsurance: (sourceApp as any).hasInsurance ?? false,
+      // References
       ref1Name: sourceApp.ref1Name,
       ref1Phone: sourceApp.ref1Phone,
       ref1Relation: sourceApp.ref1Relation,
       ref2Name: sourceApp.ref2Name,
       ref2Phone: sourceApp.ref2Phone,
       ref2Relation: sourceApp.ref2Relation,
+      // Guarantor
+      guarantorName: (sourceApp as any).guarantorName,
+      guarantorPhone: (sourceApp as any).guarantorPhone,
+      guarantorEmployer: (sourceApp as any).guarantorEmployer,
+      guarantorRelation: (sourceApp as any).guarantorRelation,
+      // Student
+      studentInstitution: (sourceApp as any).studentInstitution,
+      studentSponsor: (sourceApp as any).studentSponsor,
+      studentGradYear: (sourceApp as any).studentGradYear,
+      // Branch — from source app or fall back to account's saved branch
+      branchName: (sourceApp as any).branchName ?? (account as any).branchName ?? null,
     },
   });
 

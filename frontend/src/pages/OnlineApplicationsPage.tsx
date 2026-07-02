@@ -15,10 +15,11 @@ import {
 
 // ─── CSV Export ───────────────────────────────────────────────────────────────
 function exportCSV(apps: LoanApplication[]) {
-  const headers = ["Reference","Client","Phone","Email","Product","Amount","Term (weeks)","Status","Submitted","Reviewed"];
+  const headers = ["Reference","Client","Phone","Email","Product","Amount","Term (weeks)","Branch","Status","Submitted","Reviewed"];
   const rows = apps.map(a => [
     a.ref, a.clientName, a.clientPhone, a.clientEmail ?? "",
     a.productName, a.amount, a.termMonths ?? "",
+    (a as any).branchName ?? "",
     a.status, a.submittedAt ? new Date(a.submittedAt).toISOString().slice(0, 10) : "",
     a.reviewedAt ? new Date(a.reviewedAt).toISOString().slice(0, 10) : "",
   ].map(v => `"${String(v ?? "").replace(/"/g, '""')}"`).join(","));
@@ -396,6 +397,9 @@ export default function OnlineApplicationsPage() {
                         {app.description?.startsWith("RELOAN_FROM:") && (
                           <span className="text-purple-500 ml-1">· from {app.description.replace("RELOAN_FROM:", "")}</span>
                         )}
+                        {(app as any).branchName && (
+                          <span className="ml-1 text-amber-500">· {(app as any).branchName}</span>
+                        )}
                       </div>
                     </div>
                     <div className="text-right flex-shrink-0">
@@ -578,6 +582,7 @@ export default function OnlineApplicationsPage() {
               <div className="grid grid-cols-2 gap-2">
                 <Field label="Reference" value={selected.ref} />
                 <Field label="Product" value={selected.productName} />
+                {(selected as any).branchName && <Field label="Branch" value={(selected as any).branchName} />}
                 <Field label="Amount Requested" value={formatKwacha(selected.amount)} />
                 <Field label="Term" value={selected.termMonths ? `${selected.termMonths} weeks` : selected.rateDuration} />
                 {selected.totalRepayable > selected.amount && (

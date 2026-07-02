@@ -6,7 +6,7 @@ import {
   FileText, Brain, LogOut, TrendingUp, Wallet, ScanLine, Mail,
   CheckSquare, Calendar, ClipboardList, ShieldCheck, ShoppingCart,
   Package, Megaphone, Radio, BookMarked, MessageSquare, Layers,
-  PieChart, Target, Search, UserCheck,
+  PieChart, Target, Search, UserCheck, PhoneCall, Network, Shield,
 } from "lucide-react";
 import { useAuthStore } from "../../store/auth";
 import { useLoanApplicationStore } from "../../store/loanApplicationStore";
@@ -54,12 +54,15 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: "Risk & Reports",
     items: [
-      { to: "/collections",    Icon: AlertTriangle, label: "Collections" },
-      { to: "/credit-scoring", Icon: TrendingUp,    label: "Credit Scoring" },
-      { to: "/reports",        Icon: BarChart2,     label: "Reports" },
-      { to: "/client-hub",     Icon: UserCheck,     label: "Client Hub",     newBadge: true },
-      { to: "/targets",        Icon: Target,        label: "Targets",        roles: ["SUPER_ADMIN", "MANAGER"] },
-      { to: "/financial-statements", Icon: PieChart, label: "Financials",   roles: ["SUPER_ADMIN", "MANAGER"] },
+      { to: "/collections",             Icon: AlertTriangle, label: "Collections" },
+      { to: "/credit-scoring",          Icon: TrendingUp,    label: "Credit Scoring" },
+      { to: "/reports",                 Icon: BarChart2,     label: "Reports" },
+      { to: "/client-hub",              Icon: UserCheck,     label: "Client Hub",              newBadge: true },
+      { to: "/targets",                 Icon: Target,        label: "Targets",                 roles: ["SUPER_ADMIN", "MANAGER"] },
+      { to: "/financial-statements",    Icon: PieChart,      label: "Financials",              roles: ["SUPER_ADMIN", "MANAGER"] },
+      { to: "/follow-ups",              Icon: PhoneCall,     label: "Follow-Up Team",          newBadge: true },
+      { to: "/collection-battlefield",  Icon: Shield,        label: "Collection Battlefield",  newBadge: true },
+      { to: "/relationship-exposure",   Icon: Network,       label: "Relationship Exposure",   newBadge: true },
     ],
   },
   {

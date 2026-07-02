@@ -276,6 +276,8 @@ export interface StaffPortalApplication {
   studentInstitution?: string;
   studentSponsor?: string;
   studentGradYear?: string;
+  // Branch
+  branchName?: string;
   // Auto-computed risk assessment
   riskScore?: number;
   riskCategory?: string;

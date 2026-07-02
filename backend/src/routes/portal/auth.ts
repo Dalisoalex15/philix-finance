@@ -22,6 +22,7 @@ const registerSchema = z.object({
   monthlyIncome:      z.union([z.number().min(0), z.string()]).optional(),
   nrcNumber:          z.string().max(30).optional(),
   referralCode:       z.string().max(20).optional(),
+  branchName:         z.string().max(100).optional(),
 });
 
 const loginSchema = z.object({
@@ -212,7 +213,7 @@ router.post("/register", wrap(async (req: Request, res: Response) => {
   }
   const {
     firstName, lastName, email, phone, password,
-    dateOfBirth, gender, address, city,
+    dateOfBirth, gender, address, city, branchName,
     occupation, employer, monthlyIncome, nrcNumber, referralCode,
   } = parsed.data;
 
@@ -226,14 +227,14 @@ router.post("/register", wrap(async (req: Request, res: Response) => {
   }
 
   // Account is created with emailVerified: true since we already confirmed it
-  const account = await prisma.clientPortalAccount.create({
+  const account = await (prisma.clientPortalAccount as any).create({
     data: {
       clientNumber,
       email,
       passwordHash,
       firstName, lastName, phone,
       dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
-      gender, address, city, occupation, employer,
+      gender, address, city, branchName: branchName ?? null, occupation, employer,
       monthlyIncome: monthlyIncome ? parseFloat(String(monthlyIncome)) : null,
       nrcNumber,
       status: "PENDING_KYC",

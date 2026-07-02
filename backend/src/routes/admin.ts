@@ -240,6 +240,7 @@ router.get("/portal-accounts", wrap(async (_req: Request, res: Response) => {
       gender: true,
       address: true,
       city: true,
+      branchName: true,
       occupation: true,
       employer: true,
       monthlyIncome: true,
@@ -1780,6 +1781,79 @@ router.post("/send-payment-reminders", wrap(async (req: Request, res: Response) 
       ? `Payment reminders sent to ${sent} client${sent !== 1 ? "s" : ""} (${toRemind.filter(r => r.isOverdue).length} overdue, ${toRemind.filter(r => !r.isOverdue).length} due soon)`
       : toRemind.length === 0 ? "No clients are due this week — all clear!" : "No reminders sent (email delivery issue)",
   });
+}));
+
+// GET /api/admin/relationship-exposure — detect shared phone/guarantor/employer/address
+router.get("/relationship-exposure", wrap(async (req: Request, res: Response) => {
+  const allApps = await prisma.loanApplication.findMany({
+    where: { status: { in: ["DISBURSED", "REPAID", "APPROVED"] } },
+    select: {
+      id: true, reference: true, status: true, amountRequested: true, interestRate: true,
+      guarantorName: true, guarantorPhone: true,
+      employer: true, physicalAddress: true,
+      account: {
+        select: { id: true, clientNumber: true, firstName: true, lastName: true, email: true, phone: true },
+      },
+    },
+  });
+
+  type Member = {
+    accountId: string; clientNumber: string; name: string; phone: string;
+    email: string; loanRef: string; outstanding: number; status: string;
+  };
+  type Group = {
+    type: string; key: string; members: Member[];
+    totalExposure: number; activeLoans: number; riskLevel: string;
+  };
+
+  const buckets = new Map<string, Group>();
+
+  function addToGroup(type: string, key: string, app: typeof allApps[0]) {
+    if (!key?.trim()) return;
+    const bucketKey = `${type}::${key.toLowerCase().trim()}`;
+    if (!buckets.has(bucketKey)) {
+      buckets.set(bucketKey, { type, key: key.trim(), members: [], totalExposure: 0, activeLoans: 0, riskLevel: "LOW" });
+    }
+    const g = buckets.get(bucketKey)!;
+    const alreadyIn = g.members.find(m => m.accountId === app.account.id);
+    if (!alreadyIn) {
+      const outstanding = Math.ceil(app.amountRequested * (1 + (app.interestRate ?? 20) / 100));
+      g.members.push({
+        accountId: app.account.id,
+        clientNumber: app.account.clientNumber,
+        name: `${app.account.firstName} ${app.account.lastName}`,
+        phone: app.account.phone ?? "",
+        email: app.account.email,
+        loanRef: app.reference,
+        outstanding,
+        status: app.status,
+      });
+      g.totalExposure += outstanding;
+      if (app.status === "DISBURSED") g.activeLoans++;
+    }
+  }
+
+  for (const app of allApps) {
+    if (app.account.phone) addToGroup("PHONE", app.account.phone, app);
+    if (app.guarantorPhone) addToGroup("GUARANTOR", app.guarantorPhone, app);
+    if (app.employer) addToGroup("EMPLOYER", app.employer, app);
+    if (app.physicalAddress) addToGroup("ADDRESS", app.physicalAddress, app);
+  }
+
+  const groups: Group[] = [];
+  for (const g of buckets.values()) {
+    if (g.members.length < 2) continue;
+    const e = g.totalExposure; const c = g.members.length;
+    g.riskLevel = e > 100000 || c >= 5 ? "CRITICAL" : e > 50000 || c >= 4 ? "HIGH" : e > 20000 || c >= 3 ? "MEDIUM" : "LOW";
+    groups.push(g);
+  }
+
+  groups.sort((a, b) => {
+    const rank = (r: string) => r === "CRITICAL" ? 3 : r === "HIGH" ? 2 : r === "MEDIUM" ? 1 : 0;
+    return rank(b.riskLevel) - rank(a.riskLevel);
+  });
+
+  res.json(groups);
 }));
 
 // POST /api/admin/clients — CEO creates a client portal account directly

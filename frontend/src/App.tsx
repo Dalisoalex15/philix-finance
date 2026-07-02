@@ -128,6 +128,12 @@ import LoanRenewalPage from "./pages/portal/LoanRenewalPage";
 import DocumentCenterPage from "./pages/portal/DocumentCenterPage";
 import ClientSupportPage from "./pages/portal/ClientSupportPage";
 import AboutPage from "./pages/portal/AboutPage";
+// New feature pages
+import FollowUpsPage from "./pages/FollowUpsPage";
+import CollectionBattlefieldPage from "./pages/CollectionBattlefieldPage";
+import RelationshipExposurePage from "./pages/RelationshipExposurePage";
+import ReputationPage from "./pages/portal/ReputationPage";
+import RepaymentPlannerPage from "./pages/portal/RepaymentPlannerPage";
 
 class RouteErrorBoundary extends React.Component<
   { children: React.ReactNode },
@@ -276,6 +282,8 @@ export default function App() {
           <Route path="documents"         element={<RouteErrorBoundary><DocumentCenterPage /></RouteErrorBoundary>} />
           <Route path="help"              element={<RouteErrorBoundary><ClientSupportPage /></RouteErrorBoundary>} />
           <Route path="about"             element={<RouteErrorBoundary><AboutPage /></RouteErrorBoundary>} />
+          <Route path="reputation"        element={<RouteErrorBoundary><ReputationPage /></RouteErrorBoundary>} />
+          <Route path="repayment-planner" element={<RouteErrorBoundary><RepaymentPlannerPage /></RouteErrorBoundary>} />
         </Route>
         <Route
           path="/"
@@ -379,7 +387,10 @@ export default function App() {
           <Route path="disbursement-checklist" element={<RouteErrorBoundary><DisbursementChecklistPage /></RouteErrorBoundary>} />
           <Route path="document-expiry-alerts" element={<RouteErrorBoundary><DocumentExpiryAlertsPage /></RouteErrorBoundary>} />
           <Route path="quick-lookup" element={<RouteErrorBoundary><QuickLoanLookupPage /></RouteErrorBoundary>} />
-          <Route path="staff-performance" element={<RouteErrorBoundary><StaffPerformanceDashboardPage /></RouteErrorBoundary>} />
+          <Route path="staff-performance"    element={<RouteErrorBoundary><StaffPerformanceDashboardPage /></RouteErrorBoundary>} />
+          <Route path="follow-ups"           element={<RouteErrorBoundary><FollowUpsPage /></RouteErrorBoundary>} />
+          <Route path="collection-battlefield" element={<RouteErrorBoundary><CollectionBattlefieldPage /></RouteErrorBoundary>} />
+          <Route path="relationship-exposure" element={<RouteErrorBoundary><RelationshipExposurePage /></RouteErrorBoundary>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>

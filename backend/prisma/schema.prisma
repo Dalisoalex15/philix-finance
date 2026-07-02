@@ -28,6 +28,7 @@ model User {
   status           String     @default("ACTIVE")
   // ACTIVE | SUSPENDED | INACTIVE
   branchId         String?
+  department       String?
   avatarUrl        String?
   mfaEnabled       Boolean    @default(false)
   mfaSecret        String?
@@ -83,6 +84,7 @@ model ClientPortalAccount {
   gender            String?
   address           String?
   city              String?
+  branchName        String?
   occupation        String?
   employer          String?
   monthlyIncome     Float?
@@ -149,6 +151,7 @@ model PortalLoanApplication {
   interestRate    Float    @default(0)
   purpose         String
   description     String?
+  branchName      String?  // branch where client applied
   occupation      String?
   employer        String?
   employerPhone   String?
@@ -514,4 +517,32 @@ model JournalLine {
 
   @@index([journalId])
   @@index([accountCode])
+}
+
+// ── FOLLOW-UP TEAM (Collections) ─────────────────────────────────────────────
+model LoanFollowUp {
+  id             String    @id @default(uuid())
+  portalClientId String?
+  applicationId  String?
+  clientName     String
+  clientPhone    String?
+  loanRef        String?
+  amountDue      Float?
+  daysOverdue    Int?
+  assignedTo     String
+  assignedBy     String
+  followUpType   String    @default("CALL")
+  priority       String    @default("MEDIUM")
+  status         String    @default("PENDING")
+  notes          String?
+  outcome        String?
+  scheduledAt    DateTime
+  completedAt    DateTime?
+  nextFollowUpAt DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([status])
+  @@index([assignedTo])
+  @@index([scheduledAt])
 }

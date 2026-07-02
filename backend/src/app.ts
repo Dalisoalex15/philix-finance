@@ -48,6 +48,7 @@ import meetingsRoutes from "./routes/meetings";
 import complianceRoutes from "./routes/compliance";
 import procurementRoutes from "./routes/procurement";
 import assetsRoutes from "./routes/assets";
+import followupsRoutes from "./routes/followups";
 
 const app = express();
 
@@ -188,6 +189,7 @@ app.use("/api/meetings",      meetingsRoutes);
 app.use("/api/compliance",    complianceRoutes);
 app.use("/api/procurement",   procurementRoutes);
 app.use("/api/assets",        assetsRoutes);
+app.use("/api/follow-ups",    followupsRoutes);
 
 // Portal — public auth (register/login) under authLimiter;
 // OTP routes also get the stricter otpLimiter mounted before the auth router

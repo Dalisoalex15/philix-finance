@@ -678,8 +678,12 @@ export default function ClientDashboardPage() {
   const daysOverdue  = Math.max(0, daysOverall - GRACE_DAYS);
   const penaltyAmt   = daysOverdue > 0 ? remaining * 0.02 * daysOverdue : 0;
 
-  // Reloan eligibility: no active loan AND has a past loan to clone details from
-  const reloanSource  = !active ? apps.find(a => a.status === "REPAID" || a.status === "REJECTED") : undefined;
+  // Reloan eligibility: no pending/reviewing/approved loan + has a past loan to clone from
+  // DISBURSED loans are fine — backend now allows reloaning while repaying
+  const hasPendingApp = apps.some(a => ["SUBMITTED","UNDER_REVIEW","APPROVED"].includes(a.status));
+  const reloanSource = !hasPendingApp
+    ? (active?.status === "DISBURSED" ? active : apps.find(a => a.status === "REPAID" || a.status === "REJECTED"))
+    : undefined;
   const eligibleForReloan = !!reloanSource;
 
   // Score factors

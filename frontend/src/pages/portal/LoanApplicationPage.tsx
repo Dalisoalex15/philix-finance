@@ -81,6 +81,7 @@ export default function LoanApplicationPage() {
     // Step 1: Loan Details
     purpose: "", description: "",
     // Step 2: Personal & Employment — pre-filled from profile
+    branchName: (client as any).branchName || "",
     nrcNumber: (client as any).nrcNumber || "",
     physicalAddress: (client as any).address || "",
     employmentType: "",
@@ -185,6 +186,7 @@ export default function LoanApplicationPage() {
       if (!form.purpose) e.purpose = "Select a purpose";
     }
     if (step === 2) {
+      if (!form.branchName) e.branchName = "Please select your nearest branch";
       if (!form.nrcNumber) e.nrcNumber = "NRC number is required";
       if (!form.physicalAddress) e.physicalAddress = "Physical address is required";
       if (!form.employmentType) e.employmentType = "Select your employment type";
@@ -291,6 +293,7 @@ export default function LoanApplicationPage() {
           studentInstitution: form.studentInstitution || undefined,
           studentSponsor: form.studentSponsor || undefined,
           studentGradYear: form.studentGradYear || undefined,
+          branchName: form.branchName || undefined,
         } as Parameters<typeof portalApi.submitApplication>[0]);
 
         submitApplication({
@@ -516,6 +519,24 @@ export default function LoanApplicationPage() {
           <div className="space-y-4">
             <h3 className="font-bold text-white mb-1">Personal & Employment Information</h3>
             <p className="text-xs text-slate-500 mb-3">This information is used for identity verification and repayment capacity assessment.</p>
+
+            <Field label="Branch (where you are applying) *" error={errors.branchName}>
+              <select className={inputCls} value={form.branchName} onChange={e => set("branchName", e.target.value)}>
+                <option value="">Select your nearest branch</option>
+                <option value="Lusaka Main">Lusaka — Main Branch</option>
+                <option value="Lusaka Kalingalinga">Lusaka — Kalingalinga</option>
+                <option value="Lusaka Matero">Lusaka — Matero</option>
+                <option value="Ndola">Ndola</option>
+                <option value="Kitwe">Kitwe</option>
+                <option value="Livingstone">Livingstone</option>
+                <option value="Kabwe">Kabwe</option>
+                <option value="Chipata">Chipata</option>
+                <option value="Solwezi">Solwezi</option>
+                <option value="Kasama">Kasama</option>
+                <option value="Mansa">Mansa</option>
+                <option value="Mongu">Mongu</option>
+              </select>
+            </Field>
 
             <div className="grid grid-cols-2 gap-3">
               <Field label="NRC Number *" error={errors.nrcNumber}>

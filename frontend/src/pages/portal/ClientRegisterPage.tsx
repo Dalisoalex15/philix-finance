@@ -29,6 +29,7 @@ export default function ClientRegisterPage() {
   const [gender, setGender]         = useState<"MALE" | "FEMALE" | "">("");
   const [address, setAddress]       = useState("");
   const [city, setCity]             = useState("");
+  const [branchName, setBranchName] = useState("");
 
   // ── Step 1: identity ────────────────────────────────────────────────────────
   const [nrcNumber, setNrcNumber]     = useState("");
@@ -78,6 +79,7 @@ export default function ClientRegisterPage() {
         gender: gender || undefined,
         address: address || undefined,
         city: city || undefined,
+        branchName: branchName || undefined,
         nrcNumber: nrcNumber || undefined,
         referralCode: referralCode || undefined,
         occupation: occupation || undefined,
@@ -228,6 +230,26 @@ export default function ClientRegisterPage() {
                 <input type="text" value={city} onChange={e => setCity(e.target.value)}
                   placeholder="Lusaka"
                   className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:border-amber-500 transition-colors" />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-1.5">Branch</label>
+                <select value={branchName} onChange={e => setBranchName(e.target.value)}
+                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-amber-500 transition-colors">
+                  <option value="">Select your nearest branch</option>
+                  <option value="Lusaka Main">Lusaka — Main Branch</option>
+                  <option value="Lusaka Kalingalinga">Lusaka — Kalingalinga</option>
+                  <option value="Lusaka Matero">Lusaka — Matero</option>
+                  <option value="Ndola">Ndola</option>
+                  <option value="Kitwe">Kitwe</option>
+                  <option value="Livingstone">Livingstone</option>
+                  <option value="Kabwe">Kabwe</option>
+                  <option value="Chipata">Chipata</option>
+                  <option value="Solwezi">Solwezi</option>
+                  <option value="Kasama">Kasama</option>
+                  <option value="Mansa">Mansa</option>
+                  <option value="Mongu">Mongu</option>
+                </select>
               </div>
 
               {apiError && (

@@ -116,19 +116,28 @@ export default function EligibilityPage() {
 
   const kycVerified = client.kycStatus === "VERIFIED";
   const hasIncome = !!(client as unknown as Record<string, unknown>).monthlyIncome || !!(client as unknown as Record<string, unknown>).employer;
-  const activeApps = apps.filter(a => ["SUBMITTED", "UNDER_REVIEW", "APPROVED", "DISBURSED"].includes(a.status));
-  const hasActiveApp = activeApps.length > 0;
+  const pendingApps = apps.filter(a => ["SUBMITTED", "UNDER_REVIEW", "APPROVED"].includes(a.status));
+  const hasPendingApp = pendingApps.length > 0;
+  const disbursedApps = apps.filter(a => a.status === "DISBURSED");
+  const repaidApps = apps.filter(a => a.status === "REPAID");
   const rejectCount = apps.filter(a => a.status === "REJECTED").length;
   const recentRejection = apps.find(a => a.status === "REJECTED" && new Date(a.createdAt) > new Date(Date.now() - 30 * 86400000));
+  // Loyalty multiplier: each repaid loan increases max by 20%, up to +60%
+  const loyaltyMultiplier = Math.min(1.6, 1 + repaidApps.length * 0.20);
+  const isReturningClient = repaidApps.length > 0;
 
   function getEligibility(p: Product): { eligible: boolean; reason?: string; adjustedMax?: number } {
-    if (hasActiveApp) return { eligible: false, reason: "You already have an active application or disbursed loan" };
+    if (hasPendingApp) return { eligible: false, reason: "You have an application in review — wait for it to be processed" };
     if (recentRejection) return { eligible: false, reason: "Please wait 30 days from your last rejection before reapplying" };
     if (p.requiresKyc && !kycVerified) return { eligible: false, reason: "This product requires KYC verification" };
     if (p.requiresIncome && !hasIncome) {
       return { eligible: true, adjustedMax: Math.min(p.maxAmount, 5000), reason: "Income unverified — limit applied" };
     }
-    return { eligible: true, adjustedMax: p.maxAmount };
+    const boostedMax = Math.min(p.maxAmount * loyaltyMultiplier, p.maxAmount);
+    const loyaltyReason = isReturningClient && loyaltyMultiplier > 1
+      ? `Returning client — limit boosted +${Math.round((loyaltyMultiplier - 1) * 100)}% from ${repaidApps.length} repaid loan${repaidApps.length > 1 ? "s" : ""}`
+      : undefined;
+    return { eligible: true, adjustedMax: boostedMax, reason: loyaltyReason };
   }
 
   const eligibleCount = PRODUCTS.filter(p => getEligibility(p).eligible).length;
@@ -161,6 +170,43 @@ export default function EligibilityPage() {
         </div>
       </div>
 
+      {/* Returning Client Loyalty Banner */}
+      {isReturningClient && (
+        <div className="rounded-2xl p-5 space-y-3"
+          style={{ background: "linear-gradient(135deg, #052515 0%, #0a2d1c 100%)", border: "1px solid rgba(34,197,94,0.3)" }}>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+              style={{ background: "rgba(34,197,94,0.12)", border: "1px solid rgba(34,197,94,0.3)" }}>
+              <TrendingUp size={18} className="text-emerald-400" />
+            </div>
+            <div>
+              <div className="font-bold text-emerald-300 text-sm">Loyalty Benefit Active</div>
+              <div className="text-xs text-slate-400 mt-0.5">
+                {repaidApps.length} repaid loan{repaidApps.length > 1 ? "s" : ""} — you qualify for <span className="text-emerald-400 font-semibold">+{Math.round((loyaltyMultiplier - 1) * 100)}% higher limits</span>
+              </div>
+            </div>
+          </div>
+          <div className="grid grid-cols-3 gap-2 text-xs text-center">
+            {[
+              { label: "Loans Repaid", value: repaidApps.length },
+              { label: "Limit Boost", value: `+${Math.round((loyaltyMultiplier - 1) * 100)}%` },
+              { label: "Next Tier", value: repaidApps.length >= 3 ? "Max" : `${3 - repaidApps.length} more` },
+            ].map(s => (
+              <div key={s.label} className="rounded-xl py-2 px-1"
+                style={{ background: "rgba(34,197,94,0.06)", border: "1px solid rgba(34,197,94,0.12)" }}>
+                <div className="text-slate-500 mb-0.5 text-[10px]">{s.label}</div>
+                <div className="font-bold text-emerald-400">{s.value}</div>
+              </div>
+            ))}
+          </div>
+          <Link to="/portal/apply"
+            className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl text-xs font-bold transition-all"
+            style={{ background: "rgba(34,197,94,0.15)", border: "1px solid rgba(34,197,94,0.35)", color: "#4ade80" }}>
+            <ArrowRight size={12} /> Apply for Your Next Loan
+          </Link>
+        </div>
+      )}
+
       {/* Status Factors */}
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
         <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Your Profile Factors</h2>
@@ -168,7 +214,7 @@ export default function EligibilityPage() {
           {[
             { label: "KYC Verified", ok: kycVerified, tip: kycVerified ? "Identity confirmed" : "Complete KYC to unlock more products", href: kycVerified ? undefined : "/portal/kyc" },
             { label: "Income Verified", ok: hasIncome, tip: hasIncome ? "Income on file" : "Add employment details in Profile", href: hasIncome ? undefined : "/portal/profile" },
-            { label: "No Active Loan", ok: !hasActiveApp, tip: hasActiveApp ? "Repay current loan to reapply" : "No active applications" },
+            { label: "No Pending Application", ok: !hasPendingApp, tip: hasPendingApp ? "Wait for current application to be processed" : disbursedApps.length > 0 ? "Active loan — you can still apply for another" : "No pending applications" },
             { label: "No Recent Rejection", ok: !recentRejection, tip: recentRejection ? "Wait 30 days before reapplying" : "All clear" },
           ].map(f => (
             <div key={f.label} className={`flex items-start gap-2 p-3 rounded-xl border ${f.ok ? "bg-emerald-900/10 border-emerald-900/30" : "bg-red-900/10 border-red-900/30"}`}>

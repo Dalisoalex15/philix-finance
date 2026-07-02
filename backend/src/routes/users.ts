@@ -15,9 +15,7 @@ router.get("/", isManagerOrAbove, async (req: Request, res: Response) => {
     select: {
       id: true, employeeId: true, firstName: true, lastName: true,
       email: true, phone: true, role: true, status: true,
-      avatarUrl: true, lastLoginAt: true, createdAt: true,
-      branch: { select: { id: true, name: true } },
-      _count: { select: { loansCreated: true } },
+      department: true, avatarUrl: true, lastLoginAt: true, createdAt: true,
     },
     orderBy: { firstName: "asc" },
   });
