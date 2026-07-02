@@ -1296,10 +1296,10 @@ export default function ClientDashboardPage() {
       {/* ══ 5. QUICK LINKS ═════════════════════════════════════════════════ */}
       <div className="grid grid-cols-4 gap-2 mb-3">
         {[
-          { to: "/portal/apply",      Icon: FileText,   label: "Apply",      c: "#4f46e5" },
-          { to: "/portal/loans",      Icon: CreditCard, label: "My Loans",   c: "#059669" },
-          { to: "/portal/calculator", Icon: Calculator, label: "Calculator", c: "#d97706" },
-          { to: "/portal/kyc",        Icon: ShieldCheck, label: "KYC",       c: "#9333ea" },
+          { to: "/portal/apply",      Icon: FileText,   label: "Apply",         c: "#4f46e5" },
+          { to: "/portal/loans",      Icon: CreditCard, label: "My Loans",      c: "#059669" },
+          { to: "/portal/collateral", Icon: Shield,     label: "Vault",         c: "#C9A84C" },
+          { to: "/portal/calculator", Icon: Calculator, label: "Calculator",    c: "#d97706" },
         ].map(({ to, Icon, label, c }) => (
           <Link key={to} to={to}
             className="flex flex-col items-center gap-2 py-4 rounded-2xl hover:scale-[1.02] transition-all"
