@@ -46,7 +46,7 @@ const navGroups = [
   {
     label: "Verification",
     items: [
-      { href: "/portal/collateral",    icon: Package, label: "Submit Collateral",     color: "text-amber-400" },
+      { href: "/portal/collateral",    icon: Package, label: "Collateral Vault",       color: "text-amber-400" },
       { href: "/portal/kyc",           icon: Shield,  label: "Identity Verification", color: "text-purple-400" },
     ],
   },

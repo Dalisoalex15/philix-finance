@@ -12,7 +12,7 @@ import ClientPortalLayout from "./components/portal/ClientPortalLayout";
 import ClientRegisterPage from "./pages/portal/ClientRegisterPage";
 import ClientDashboardPage from "./pages/portal/ClientDashboardPage";
 import LoanApplicationPage from "./pages/portal/LoanApplicationPage";
-import CollateralSubmissionPage from "./pages/portal/CollateralSubmissionPage";
+import CollateralVaultPage from "./pages/portal/CollateralVaultPage";
 import KYCSubmissionPage from "./pages/portal/KYCSubmissionPage";
 import MyLoansPage from "./pages/portal/MyLoansPage";
 import ClientProfilePage from "./pages/portal/ClientProfilePage";
@@ -258,7 +258,7 @@ export default function App() {
           <Route path="dashboard"    element={<RouteErrorBoundary><ClientDashboardPage /></RouteErrorBoundary>} />
           <Route path="apply"        element={<RouteErrorBoundary><LoanApplicationPage /></RouteErrorBoundary>} />
           <Route path="loans"        element={<RouteErrorBoundary><MyLoansPage /></RouteErrorBoundary>} />
-          <Route path="collateral"   element={<RouteErrorBoundary><CollateralSubmissionPage /></RouteErrorBoundary>} />
+          <Route path="collateral"   element={<RouteErrorBoundary><CollateralVaultPage /></RouteErrorBoundary>} />
           <Route path="kyc"          element={<RouteErrorBoundary><KYCSubmissionPage /></RouteErrorBoundary>} />
           <Route path="notifications"element={<RouteErrorBoundary><ClientNotificationsPage /></RouteErrorBoundary>} />
           <Route path="profile"      element={<RouteErrorBoundary><ClientProfilePage /></RouteErrorBoundary>} />

@@ -1,12 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  TrendingUp, AlertTriangle, CheckCircle, XCircle, RefreshCw, TrendingDown, Bell,
+  TrendingUp, AlertTriangle, CheckCircle, XCircle, RefreshCw, TrendingDown,
+  Edit3, Save, X as XIcon,
 } from "lucide-react";
 import { useLoanApplicationStore, type LoanApplication } from "../store/loanApplicationStore";
 import { formatKwacha, formatDate } from "../lib/mock-data";
 import {
   K, SCORE_LABEL, SCORE_COLOR, COVERAGE_COLOR, COVERAGE_LABEL, REPOSSESSION_COLOR,
 } from "../lib/collateralEngine";
+
+const staffToken = () => localStorage.getItem("philix_staff_token") ?? "";
 
 type RiskFilter = "ALL" | "EXCELLENT" | "GOOD" | "MODERATE" | "REJECT" | "NO_ASSESSMENT";
 
@@ -34,6 +37,34 @@ export default function CollateralCommandPage() {
   const [riskFilter, setRiskFilter] = useState<RiskFilter>("ALL");
   const [selected, setSelected] = useState<LoanApplication | null>(null);
   const [showRejectOnly, setShowRejectOnly] = useState(false);
+
+  // Market value editing
+  const [editingMV, setEditingMV] = useState(false);
+  const [mvInput, setMvInput] = useState("");
+  const [mvSaving, setMvSaving] = useState(false);
+  const [mvError, setMvError] = useState("");
+  const [mvSuccess, setMvSuccess] = useState(false);
+
+  async function saveMarketValue() {
+    if (!selected || !mvInput || isNaN(Number(mvInput)) || Number(mvInput) <= 0) {
+      setMvError("Enter a valid positive amount"); return;
+    }
+    setMvSaving(true); setMvError(""); setMvSuccess(false);
+    try {
+      const r = await fetch(`/api/collateral/${selected.id}/market-value`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${staffToken()}` },
+        body: JSON.stringify({ staffMarketValue: Number(mvInput) }),
+      });
+      if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d.error ?? "Failed"); }
+      setMvSuccess(true);
+      setEditingMV(false);
+      await syncFromApi();
+      setTimeout(() => setMvSuccess(false), 3000);
+    } catch (err: unknown) {
+      setMvError(err instanceof Error ? err.message : "Save failed");
+    } finally { setMvSaving(false); }
+  }
 
   useEffect(() => { syncFromApi(); }, []);
 
@@ -417,6 +448,79 @@ export default function CollateralCommandPage() {
                 No auto-assessment available. This application was submitted before the assessment system was active.
               </div>
             )}
+
+            {/* ── Staff Market Valuation ── */}
+            <section className="rounded-2xl border border-amber-800/30 bg-amber-900/10 p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <Edit3 size={11} /> Real Market Value
+                </div>
+                {!editingMV && (
+                  <button
+                    onClick={() => { setEditingMV(true); setMvInput(String((selected as any).staffMarketValue ?? "")); setMvError(""); }}
+                    className="text-xs px-3 py-1.5 rounded-xl font-semibold flex items-center gap-1.5 transition-all hover:bg-amber-800/40"
+                    style={{ background: "rgba(201,168,76,0.15)", color: "#C9A84C", border: "1px solid rgba(201,168,76,0.35)" }}>
+                    <Edit3 size={10} /> {(selected as any).staffMarketValue ? "Update Value" : "Set Market Value"}
+                  </button>
+                )}
+              </div>
+
+              {(selected as any).staffMarketValue && !editingMV && (
+                <div>
+                  <div className="text-2xl font-black" style={{ color: "#C9A84C" }}>
+                    {K((selected as any).staffMarketValue)}
+                  </div>
+                  {(selected as any).staffValuedBy && (
+                    <div className="text-xs text-slate-500 mt-1">
+                      Valued by {(selected as any).staffValuedBy}
+                      {(selected as any).staffValuedAt ? ` · ${new Date((selected as any).staffValuedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}` : ""}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {!editingMV && !(selected as any).staffMarketValue && (
+                <p className="text-xs text-amber-300/60">
+                  No real market value set yet. Click "Set Market Value" after physically inspecting this collateral item.
+                </p>
+              )}
+
+              {editingMV && (
+                <div className="space-y-2">
+                  <div className="flex gap-2">
+                    <div className="relative flex-1">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-amber-400 text-sm font-bold">K</span>
+                      <input
+                        type="number"
+                        value={mvInput}
+                        onChange={e => setMvInput(e.target.value)}
+                        placeholder="e.g. 8500"
+                        autoFocus
+                        className="w-full pl-7 pr-3 py-2.5 rounded-xl text-sm text-white font-semibold focus:outline-none"
+                        style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(201,168,76,0.4)" }}
+                      />
+                    </div>
+                    <button onClick={saveMarketValue} disabled={mvSaving}
+                      className="px-4 py-2.5 rounded-xl font-semibold text-sm flex items-center gap-1.5 disabled:opacity-50"
+                      style={{ background: "#C9A84C", color: "#0A1F44" }}>
+                      {mvSaving ? <RefreshCw size={12} className="animate-spin" /> : <Save size={12} />} Save
+                    </button>
+                    <button onClick={() => { setEditingMV(false); setMvError(""); }}
+                      className="p-2.5 rounded-xl text-slate-500 hover:text-slate-300"
+                      style={{ border: "1px solid rgba(255,255,255,0.08)" }}>
+                      <XIcon size={14} />
+                    </button>
+                  </div>
+                  {mvError && <p className="text-xs text-red-400">{mvError}</p>}
+                </div>
+              )}
+
+              {mvSuccess && (
+                <div className="text-xs text-emerald-400 flex items-center gap-1.5">
+                  <CheckCircle size={11} /> Market value saved successfully
+                </div>
+              )}
+            </section>
 
             {/* Collateral Details */}
             <section>

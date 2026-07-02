@@ -206,6 +206,12 @@ model PortalLoanApplication {
   repossessionScore    String?   // GREEN|AMBER|RED
   assessmentJson       String?   // JSON blob with full breakdown
 
+  // Staff-assessed real market value (set after physical inspection)
+  staffMarketValue     Float?    // real market value entered by staff
+  staffValuedBy        String?   // staff name/email who valued it
+  staffValuedAt        DateTime? // when the valuation was done
+  vaultStatus          String?   // PENDING_VALUATION | VALUED | RELEASED
+
   status          String   @default("SUBMITTED")
   // SUBMITTED | UNDER_REVIEW | APPROVED | REJECTED | DISBURSED
   reviewedBy      String?

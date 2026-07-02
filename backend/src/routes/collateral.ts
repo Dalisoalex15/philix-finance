@@ -109,4 +109,39 @@ router.get("/:id", isManagerOrAbove, async (req: Request, res: Response) => {
   res.json(item);
 });
 
+// PATCH /api/collateral/:id/market-value — staff sets real market value after physical inspection
+router.patch("/:id/market-value", isLoanOfficerOrAbove, async (req: Request, res: Response) => {
+  const { staffMarketValue, notes } = req.body as { staffMarketValue: number; notes?: string };
+  const staffUser = (req as any).user;
+
+  if (!staffMarketValue || isNaN(Number(staffMarketValue)) || Number(staffMarketValue) <= 0) {
+    throw new AppError("staffMarketValue must be a positive number", 400);
+  }
+
+  const item = await prisma.portalLoanApplication.findFirst({
+    where: { id: req.params.id },
+  });
+  if (!item) throw new AppError("Collateral record not found", 404);
+
+  const updated = await prisma.portalLoanApplication.update({
+    where: { id: req.params.id },
+    data: {
+      staffMarketValue: Number(staffMarketValue),
+      staffValuedBy: `${staffUser?.firstName ?? ""} ${staffUser?.lastName ?? ""}`.trim() || staffUser?.email || "Staff",
+      staffValuedAt: new Date(),
+      vaultStatus: "VALUED",
+    },
+    include: {
+      account: {
+        select: {
+          id: true, firstName: true, lastName: true,
+          clientNumber: true, email: true, phone: true,
+        },
+      },
+    },
+  });
+
+  res.json(updated);
+});
+
 export default router;
